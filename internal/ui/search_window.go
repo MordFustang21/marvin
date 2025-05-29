@@ -9,7 +9,6 @@ import (
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/driver/desktop"
 	"fyne.io/fyne/v2/layout"
-	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 	"github.com/MordFustang21/marvin-go/internal/search"
 )
@@ -23,8 +22,8 @@ const (
 	cornerRadius    = 8
 )
 
-// SearchResult represents a visual row in the search results
-type SearchResult struct {
+// SearchResultItem represents a visual row in the search results
+type SearchResultItem struct {
 	widget.BaseWidget
 	Title       string
 	Description string
@@ -33,27 +32,29 @@ type SearchResult struct {
 	OnTap       func()
 	IsSelected  bool
 	background  *canvas.Rectangle
+	searchResult search.SearchResult // Reference to the original search result
 }
 
 // NewSearchResult creates a new search result widget
-func NewSearchResult(title, description, path string, icon fyne.Resource, onTap func()) *SearchResult {
+func NewSearchResult(result search.SearchResult) *SearchResultItem {
 	bgColor := color.NRGBA{R: 13, G: 17, B: 23, A: 255} // Default background color
 	background := canvas.NewRectangle(bgColor)
 
-	result := &SearchResult{
-		Title:       title,
-		Description: description,
-		Path:        path,
-		Icon:        icon,
-		OnTap:       onTap,
+	resultItem := &SearchResultItem{
+		Title:       result.Title,
+		Description: result.Description,
+		Path:        result.Path,
+		Icon:        result.Icon,
+		OnTap:       result.Action,
 		background:  background,
+		searchResult: result,
 	}
-	result.ExtendBaseWidget(result)
-	return result
+	resultItem.ExtendBaseWidget(resultItem)
+	return resultItem
 }
 
 // CreateRenderer creates a renderer for the search result
-func (r *SearchResult) CreateRenderer() fyne.WidgetRenderer {
+func (r *SearchResultItem) CreateRenderer() fyne.WidgetRenderer {
 	title := widget.NewLabel(r.Title)
 	title.TextStyle = fyne.TextStyle{Bold: true}
 
@@ -89,19 +90,19 @@ func (r *SearchResult) CreateRenderer() fyne.WidgetRenderer {
 }
 
 // Tapped handles tap events on the result
-func (r *SearchResult) Tapped(*fyne.PointEvent) {
+func (r *SearchResultItem) Tapped(*fyne.PointEvent) {
 	if r.OnTap != nil {
 		r.OnTap()
 	}
 }
 
 // MinSize returns the minimum size of the result
-func (r *SearchResult) MinSize() fyne.Size {
+func (r *SearchResultItem) MinSize() fyne.Size {
 	return fyne.NewSize(defaultWidth, resultRowHeight)
 }
 
 type searchResultRenderer struct {
-	result     *SearchResult
+	result     *SearchResultItem
 	content    fyne.CanvasObject
 	background *canvas.Rectangle
 	objects    []fyne.CanvasObject
@@ -132,17 +133,17 @@ type SearchWindow struct {
 	window        fyne.Window
 	searchInput   *widget.Entry
 	resultsList   *fyne.Container
-	searcher      *search.SpotlightSearcher
+	registry      *search.Registry
 	timer         *time.Timer
 	isFrameless   bool
 	selectedIndex int
-	results       []search.SpotlightResult
-	resultItems   []*SearchResult
+	results       []search.SearchResult
+	resultItems   []*SearchResultItem
 	hasFocus      bool
 }
 
 // NewSearchWindow creates a new search window
-func NewSearchWindow(app fyne.App) *SearchWindow {
+func NewSearchWindow(app fyne.App, registry *search.Registry) *SearchWindow {
 	var window fyne.Window
 	if drv, ok := app.Driver().(desktop.Driver); ok {
 		window = drv.CreateSplashWindow()
@@ -162,7 +163,7 @@ func NewSearchWindow(app fyne.App) *SearchWindow {
 		}
 	})
 
-	searcher := search.NewSpotlightSearcher(20)
+	// Registry is now passed in as a parameter
 
 	// Create a custom styled search input
 	searchInput := widget.NewEntry()
@@ -176,7 +177,7 @@ func NewSearchWindow(app fyne.App) *SearchWindow {
 		window:      window,
 		searchInput: searchInput,
 		resultsList: resultsList,
-		searcher:    searcher,
+		registry:    registry,
 		isFrameless: true,
 	}
 
@@ -338,7 +339,7 @@ func (sw *SearchWindow) performSearch(query string) {
 		return
 	}
 
-	results, err := sw.searcher.Search(query)
+	results, err := sw.registry.Search(query)
 	if err != nil {
 		// Show error in the UI
 		sw.resultsList.Add(widget.NewLabel("Error: " + err.Error()))
@@ -352,36 +353,21 @@ func (sw *SearchWindow) performSearch(query string) {
 
 	// Store the results
 	sw.results = results
-	sw.resultItems = make([]*SearchResult, 0, len(results))
+	sw.resultItems = make([]*SearchResultItem, 0, len(results))
 
 	// Add results to the list
 	for i, result := range results {
-		var icon fyne.Resource
-
-		// Select an appropriate icon based on the kind
-		switch result.Kind {
-		case "application":
-			icon = theme.ComputerIcon()
-		case "folder":
-			icon = theme.FolderIcon()
-		default:
-			icon = theme.DocumentIcon()
-		}
-
-		// Create closure for the item's path for tap handling
-		path := result.Path
-
 		// Create a search result item
-		resultItem := NewSearchResult(
-			result.Name,
-			result.Path,
-			result.Path,
-			icon,
-			func() {
-				search.OpenFile(path)
-				sw.Hide() // Hide the window after selection
-			},
-		)
+		resultItem := NewSearchResult(result)
+		
+		// Configure the action to hide the window after execution
+		originalAction := resultItem.OnTap
+		resultItem.OnTap = func() {
+			if originalAction != nil {
+				originalAction()
+			}
+			sw.Hide() // Hide the window after selection
+		}
 
 		// Set selected state for the first item only
 		resultItem.IsSelected = (i == 0)
