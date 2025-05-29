@@ -139,6 +139,13 @@ func (r *SearchResultItem) MinSize() fyne.Size {
 
 // Refresh refreshes the widget
 func (r *SearchResultItem) Refresh() {
+	if r.IsSelected {
+		r.background.FillColor = color.NRGBA{R: 35, G: 57, B: 83, A: 255} // selected
+	} else {
+		r.background.FillColor = color.NRGBA{R: 18, G: 23, B: 32, A: 255} // not selected
+	}
+	
+	r.background.Refresh()
 	r.BaseWidget.Refresh()
 }
 
@@ -323,6 +330,9 @@ func (sw *SearchWindow) selectResult(index int) {
 	sw.selectedIndex = index
 	sw.resultItems[index].IsSelected = true
 	sw.resultItems[index].Refresh()
+
+	// Refresh the results list container to ensure UI updates
+	sw.resultsList.Refresh()
 
 	// Ensure the selected item is visible in the scroll container
 	// (This would need custom scroll logic if we had implemented scroll visibility control)
