@@ -191,7 +191,7 @@ func (r *searchResultRenderer) Destroy() {}
 // SearchWindow represents the main search window of the application
 type SearchWindow struct {
 	window        fyne.Window
-	searchInput   *widget.Entry
+	searchInput   *SearchEntry
 	resultsList   *fyne.Container
 	registry      *search.Registry
 	timer         *time.Timer
@@ -219,16 +219,9 @@ func NewSearchWindow(app fyne.App, registry *search.Registry) *SearchWindow {
 
 	// Configure window for clean appearance
 	window.SetPadded(true)
-	window.Canvas().SetOnTypedKey(func(ke *fyne.KeyEvent) {
-		if ke.Name == fyne.KeyEscape {
-			window.Hide()
-		}
-	})
-
-	// Registry is now passed in as a parameter
 
 	// Create a custom styled search input
-	searchInput := widget.NewEntry()
+	searchInput := NewSearchEntry()
 	searchInput.SetPlaceHolder(util.GetRandomQuote())
 	searchInput.TextStyle = fyne.TextStyle{Bold: true}
 	// Entry text size is controlled by theme
@@ -251,6 +244,20 @@ func NewSearchWindow(app fyne.App, registry *search.Registry) *SearchWindow {
 		searchWindow.launchSelectedResult()
 	}
 
+	// Handle navigation keys even when entry has focus
+	searchInput.OnSpecialKey = func(key *fyne.KeyEvent) {
+		switch key.Name {
+		case fyne.KeyEscape:
+			window.Hide()
+		case fyne.KeyDown:
+			searchWindow.selectNextResult()
+		case fyne.KeyUp:
+			searchWindow.selectPreviousResult()
+		case fyne.KeyReturn:
+			searchWindow.launchSelectedResult()
+		}
+	}
+
 	// Set window attributes after creation
 	window.SetCloseIntercept(func() {
 		window.Hide()
@@ -271,20 +278,6 @@ func NewSearchWindow(app fyne.App, registry *search.Registry) *SearchWindow {
 			searchWindow.timer.Reset(searchDelay)
 		}
 	}
-
-	// Handle keyboard navigation
-	window.Canvas().SetOnTypedKey(func(key *fyne.KeyEvent) {
-		switch key.Name {
-		case fyne.KeyEscape:
-			window.Hide()
-		case fyne.KeyDown:
-			searchWindow.selectNextResult()
-		case fyne.KeyUp:
-			searchWindow.selectPreviousResult()
-		case fyne.KeyReturn:
-			searchWindow.launchSelectedResult()
-		}
-	})
 
 	// Create a cleaner layout with custom padding and styling
 	searchInputContainer := container.NewPadded(searchInput)

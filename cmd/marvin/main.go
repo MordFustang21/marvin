@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
@@ -39,7 +38,6 @@ func main() {
 	// TODO: Setup shortcuts for cmd+space to toggle the window.
 	go func() {
 		hook.Register(hook.KeyDown, []string{"cmd", "space"}, func(e hook.Event) {
-			fmt.Println("Toggling window")
 			// Toggle the search window visibility
 			if searchWindow.IsVisible() {
 				searchWindow.Hide()
