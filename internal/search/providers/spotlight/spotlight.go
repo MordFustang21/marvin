@@ -91,9 +91,23 @@ func (p *Provider) Search(query string) ([]search.SearchResult, error) {
 		// Create closure for the item's path for action handling
 		pathCopy := path // Copy to avoid closure capturing loop variable
 		
+		// Create a more user-friendly description
+		var description string
+		if strings.HasSuffix(pathCopy, ".app") {
+			description = "Application"
+		} else {
+			// Get parent directory for files
+			parentDir := p.getParentDirectory(pathCopy)
+			if parentDir != "" {
+				description = "in " + parentDir
+			} else {
+				description = pathCopy
+			}
+		}
+
 		results = append(results, search.SearchResult{
 			Title:       name,
-			Description: path,
+			Description: description,
 			Path:        path,
 			Icon:        iconResource,
 			Type:        search.TypeFile,
@@ -115,6 +129,15 @@ func (p *Provider) extractNameFromPath(path string) string {
 		return parts[len(parts)-1]
 	}
 	return path
+}
+
+// getParentDirectory returns the parent directory name
+func (p *Provider) getParentDirectory(path string) string {
+	parts := strings.Split(path, "/")
+	if len(parts) > 2 {
+		return parts[len(parts)-2]
+	}
+	return ""
 }
 
 // determineKindAndIcon determines the kind and icon based on the file path

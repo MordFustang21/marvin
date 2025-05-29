@@ -15,11 +15,13 @@ import (
 
 const (
 	searchDelay     = 300 * time.Millisecond
-	defaultWidth    = 600
-	defaultHeight   = 400
-	searchBarHeight = 40
-	resultRowHeight = 60
-	cornerRadius    = 8
+	defaultWidth    = 650
+	defaultHeight   = 450
+	searchBarHeight = 50
+	resultRowHeight = 70
+	cornerRadius    = 10
+	iconWidth       = 36
+	descMaxLines    = 2
 )
 
 // SearchResultItem represents a visual row in the search results
@@ -57,29 +59,55 @@ func NewSearchResult(result search.SearchResult) *SearchResultItem {
 func (r *SearchResultItem) CreateRenderer() fyne.WidgetRenderer {
 	title := widget.NewLabel(r.Title)
 	title.TextStyle = fyne.TextStyle{Bold: true}
-
+	// Title size is controlled by text style
+	
 	description := widget.NewLabel(r.Description)
 	description.TextStyle = fyne.TextStyle{}
 	description.Wrapping = fyne.TextWrapWord
-
+	description.Truncation = fyne.TextTruncateEllipsis
+	// Description size is controlled by text style
+	
+	// Ensure description is a lighter color to differentiate from title
+	descriptionText := canvas.NewText(r.Description, color.NRGBA{R: 160, G: 170, B: 180, A: 220})
+	descriptionText.TextStyle = fyne.TextStyle{}
+	descriptionText.TextSize = 14
+	
 	icon := widget.NewIcon(r.Icon)
-
+	
+	// Create a fixed width container for text to prevent overflow
+	textContainer := container.New(
+		layout.NewVBoxLayout(),
+		title,
+		descriptionText,
+	)
+	
+	// Limit the text container's width
+	textWrapper := container.NewStack(textContainer)
+	
+	// Add padding around the icon
+	// Create a nice container for the icon with proper padding and centering
+	iconSize := fyne.NewSize(iconWidth, iconWidth)
+	icon.Resize(iconSize)
+	
+	iconContainer := container.New(
+		layout.NewPaddedLayout(),
+		container.New(layout.NewCenterLayout(), icon),
+	)
+	iconContainer.Move(fyne.NewPos(8, 8))
+	
 	content := container.New(
 		layout.NewHBoxLayout(),
-		container.NewPadded(icon),
-		container.New(
-			layout.NewVBoxLayout(),
-			title,
-			description,
-		),
+		iconContainer,
+		textWrapper,
 	)
 
-	// Set background color based on selection state
-	if r.IsSelected {
-		r.background.FillColor = color.NRGBA{R: 35, G: 57, B: 83, A: 255} // #233953 - darker blue for selection
-	} else {
-		r.background.FillColor = color.NRGBA{R: 13, G: 17, B: 23, A: 255} // #0d1117 - default dark bg
-	}
+	// Set background color based on selection state and add rounded corners
+		if r.IsSelected {
+			r.background.FillColor = color.NRGBA{R: 35, G: 57, B: 83, A: 255} // #233953 - darker blue for selection
+		} else {
+			r.background.FillColor = color.NRGBA{R: 18, G: 23, B: 32, A: 255} // Slightly lighter than default for contrast
+		}
+		r.background.CornerRadius = 6 // Add rounded corners to results
 
 	return &searchResultRenderer{
 		result:     r,
@@ -98,7 +126,13 @@ func (r *SearchResultItem) Tapped(*fyne.PointEvent) {
 
 // MinSize returns the minimum size of the result
 func (r *SearchResultItem) MinSize() fyne.Size {
+	// Add a bit more height for better spacing between items
 	return fyne.NewSize(defaultWidth, resultRowHeight)
+}
+
+// Refresh refreshes the widget
+func (r *SearchResultItem) Refresh() {
+	r.BaseWidget.Refresh()
 }
 
 type searchResultRenderer struct {
@@ -110,11 +144,30 @@ type searchResultRenderer struct {
 
 func (r *searchResultRenderer) Layout(size fyne.Size) {
 	r.background.Resize(size)
-	r.content.Resize(size)
+	
+	// Leave a small margin on the right and add some vertical padding
+	contentSize := fyne.NewSize(size.Width-16, size.Height-8)
+	r.content.Resize(contentSize)
+	r.content.Move(fyne.NewPos(4, 4))
+	
+	// Add a subtle separator at the bottom of each result
+	if !r.result.IsSelected {
+		// Draw a subtle separator line except for selected items
+		separator := canvas.NewLine(color.NRGBA{R: 50, G: 60, B: 80, A: 100})
+		separator.Position1 = fyne.NewPos(10, size.Height-1)
+		separator.Position2 = fyne.NewPos(size.Width-10, size.Height-1)
+		separator.StrokeWidth = 1
+		separator.Refresh()
+	}
 }
 
 func (r *searchResultRenderer) MinSize() fyne.Size {
-	return r.content.MinSize()
+	// Ensure we have a minimum height for each result item
+	minSize := r.content.MinSize()
+	if minSize.Height < resultRowHeight {
+		minSize.Height = resultRowHeight
+	}
+	return minSize
 }
 
 func (r *searchResultRenderer) Objects() []fyne.CanvasObject {
@@ -167,7 +220,9 @@ func NewSearchWindow(app fyne.App, registry *search.Registry) *SearchWindow {
 
 	// Create a custom styled search input
 	searchInput := widget.NewEntry()
-	searchInput.SetPlaceHolder("Search...")
+	searchInput.SetPlaceHolder("Type to search or calculate...")
+	searchInput.TextStyle = fyne.TextStyle{Bold: true}
+	// Entry text size is controlled by theme
 
 	resultsList := container.NewVBox()
 	resultsScroll := container.NewScroll(resultsList)
@@ -180,6 +235,9 @@ func NewSearchWindow(app fyne.App, registry *search.Registry) *SearchWindow {
 		registry:    registry,
 		isFrameless: true,
 	}
+	
+	// Set a nice placeholder theme
+	searchInput.PlaceHolder = "Type to search apps or perform calculations..."
 
 	// Create trigger for search on input submission.
 	// This is so we can launch a selected search result.
@@ -359,7 +417,12 @@ func (sw *SearchWindow) performSearch(query string) {
 	for i, result := range results {
 		// Create a search result item
 		resultItem := NewSearchResult(result)
-		
+	
+		// Truncate long descriptions
+			if len(resultItem.Description) > 120 {
+				resultItem.Description = resultItem.Description[:117] + "..."
+			}
+	
 		// Configure the action to hide the window after execution
 		originalAction := resultItem.OnTap
 		resultItem.OnTap = func() {

@@ -120,7 +120,7 @@ func (p *Provider) Search(query string) ([]search.SearchResult, error) {
 	return []search.SearchResult{
 		{
 			Title:       displayText,
-			Description: "Calculator result - Press Enter to copy to clipboard",
+			Description: "Press Enter to copy result to clipboard",
 			Icon:        theme.ContentAddIcon(),
 			Type:        search.TypeCalculator,
 			Action: func() {
