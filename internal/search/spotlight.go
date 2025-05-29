@@ -40,9 +40,10 @@ func (s *SpotlightSearcher) Search(query string) ([]SpotlightResult, error) {
 	
 	// Format the mdfind query
 	// We'll search for applications, files, folders that match the query
-	mdFindQuery := fmt.Sprintf("kMDItemDisplayName=\"*%s*\"c || kMDItemFSName=\"*%s*\"c", query, query)
+	mdFindQuery := fmt.Sprintf("kind:app %s", query)
 	
-	cmd := exec.Command("mdfind", mdFindQuery, "-limit", fmt.Sprintf("%d", s.maxResults))
+	cmd := exec.Command("mdfind", mdFindQuery)
+	fmt.Println("Executing", cmd.Args)
 	var out bytes.Buffer
 	cmd.Stdout = &out
 	
@@ -53,7 +54,7 @@ func (s *SpotlightSearcher) Search(query string) ([]SpotlightResult, error) {
 	
 	// Process results
 	results := []SpotlightResult{}
-	for _, path := range strings.Split(strings.TrimSpace(out.String()), "\n") {
+	for path := range strings.SplitSeq(strings.TrimSpace(out.String()), "\n") {
 		if path == "" {
 			continue
 		}

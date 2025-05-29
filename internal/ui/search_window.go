@@ -13,12 +13,12 @@ import (
 )
 
 const (
-	searchDelay    = 300 * time.Millisecond
-	defaultWidth   = 600
-	defaultHeight  = 400
+	searchDelay     = 300 * time.Millisecond
+	defaultWidth    = 600
+	defaultHeight   = 400
 	searchBarHeight = 40
 	resultRowHeight = 60
-	cornerRadius   = 8
+	cornerRadius    = 8
 )
 
 // SearchResult represents a visual row in the search results
@@ -48,13 +48,13 @@ func NewSearchResult(title, description, path string, icon fyne.Resource, onTap 
 func (r *SearchResult) CreateRenderer() fyne.WidgetRenderer {
 	title := widget.NewLabel(r.Title)
 	title.TextStyle = fyne.TextStyle{Bold: true}
-	
+
 	description := widget.NewLabel(r.Description)
 	description.TextStyle = fyne.TextStyle{}
 	description.Wrapping = fyne.TextWrapWord
-	
+
 	icon := widget.NewIcon(r.Icon)
-	
+
 	content := container.New(
 		layout.NewHBoxLayout(),
 		container.NewPadded(icon),
@@ -64,7 +64,7 @@ func (r *SearchResult) CreateRenderer() fyne.WidgetRenderer {
 			description,
 		),
 	)
-	
+
 	return &searchResultRenderer{
 		result:     r,
 		content:    content,
@@ -128,7 +128,7 @@ func NewSearchWindow(app fyne.App) *SearchWindow {
 	window.SetFixedSize(true)
 	window.Resize(fyne.NewSize(defaultWidth, defaultHeight))
 	window.CenterOnScreen()
-	
+
 	// Configure window for clean appearance
 	window.SetPadded(true)
 	window.Canvas().SetOnTypedKey(func(ke *fyne.KeyEvent) {
@@ -136,13 +136,13 @@ func NewSearchWindow(app fyne.App) *SearchWindow {
 			window.Hide()
 		}
 	})
-	
+
 	searcher := search.NewSpotlightSearcher(20)
-	
+
 	// Create a custom styled search input
 	searchInput := widget.NewEntry()
 	searchInput.SetPlaceHolder("Search...")
-	
+
 	resultsList := container.NewVBox()
 	resultsScroll := container.NewScroll(resultsList)
 
@@ -154,12 +154,12 @@ func NewSearchWindow(app fyne.App) *SearchWindow {
 		searcher:    searcher,
 		isFrameless: true,
 	}
-	
+
 	// Set window attributes after creation
 	window.SetCloseIntercept(func() {
 		window.Hide()
 	})
-	
+
 	// Set up the search delay timer
 	searchWindow.timer = time.NewTimer(searchDelay)
 	go func() {
@@ -167,7 +167,7 @@ func NewSearchWindow(app fyne.App) *SearchWindow {
 			searchWindow.performSearch(searchInput.Text)
 		}
 	}()
-	
+
 	// Hook up events
 	searchInput.OnChanged = func(text string) {
 		// Reset the timer for each keystroke
@@ -175,25 +175,25 @@ func NewSearchWindow(app fyne.App) *SearchWindow {
 			searchWindow.timer.Reset(searchDelay)
 		}
 	}
-	
+
 	// Create a cleaner layout with custom padding and styling
 	searchInputContainer := container.NewPadded(searchInput)
-	
+
 	// Create main content layout with better spacing
 	searchBox := widget.NewCard("", "", searchInputContainer)
-	
+
 	mainContainer := container.NewBorder(
 		searchBox,
 		nil, nil, nil,
 		resultsScroll,
 	)
-	
+
 	// Set the content
 	window.SetContent(mainContainer)
-	
+
 	// Focus the search input when the window opens
 	window.Canvas().Focus(searchInput)
-	
+
 	return searchWindow
 }
 
@@ -220,55 +220,55 @@ func (sw *SearchWindow) performSearch(query string) {
 	// We'll update the UI directly since we're likely already on the main thread
 	// If needed, fyne will handle thread safety internally
 	sw.resultsList.RemoveAll()
-	
+
 	if query == "" {
 		return
 	}
-		
-		results, err := sw.searcher.Search(query)
-		if err != nil {
-			// Show error in the UI
-			sw.resultsList.Add(widget.NewLabel("Error: " + err.Error()))
-			return
+
+	results, err := sw.searcher.Search(query)
+	if err != nil {
+		// Show error in the UI
+		sw.resultsList.Add(widget.NewLabel("Error: " + err.Error()))
+		return
+	}
+
+	if len(results) == 0 {
+		sw.resultsList.Add(widget.NewLabel("No results found"))
+		return
+	}
+
+	// Add results to the list
+	for _, result := range results {
+		var icon fyne.Resource
+
+		// Select an appropriate icon based on the kind
+		switch result.Kind {
+		case "application":
+			icon = theme.ComputerIcon()
+		case "folder":
+			icon = theme.FolderIcon()
+		default:
+			icon = theme.DocumentIcon()
 		}
-		
-		if len(results) == 0 {
-			sw.resultsList.Add(widget.NewLabel("No results found"))
-			return
-		}
-		
-		// Add results to the list
-		for _, result := range results {
-			var icon fyne.Resource
-			
-			// Select an appropriate icon based on the kind
-			switch result.Kind {
-			case "application":
-				icon = theme.ComputerIcon()
-			case "folder":
-				icon = theme.FolderIcon()
-			default:
-				icon = theme.DocumentIcon()
-			}
-			
-			// Create a search result item
-			resultItem := NewSearchResult(
-				result.Name,
-				result.Path,
-				result.Path,
-				icon,
-				func(path string) func() {
-					return func() {
-						search.OpenFile(path)
-						sw.Hide() // Hide the window after selection
-					}
-				}(result.Path),
-			)
-			
-			sw.resultsList.Add(resultItem)
-		}
-		
-		sw.resultsList.Refresh()
+
+		// Create a search result item
+		resultItem := NewSearchResult(
+			result.Name,
+			result.Path,
+			result.Path,
+			icon,
+			func(path string) func() {
+				return func() {
+					search.OpenFile(path)
+					sw.Hide() // Hide the window after selection
+				}
+			}(result.Path),
+		)
+
+		sw.resultsList.Add(resultItem)
+	}
+
+	sw.resultsList.Refresh()
 }
 
 // ShowWithKeyboardFocus shows the search window and focuses the search input
