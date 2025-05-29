@@ -43,7 +43,6 @@ func (s *SpotlightSearcher) Search(query string) ([]SpotlightResult, error) {
 	mdFindQuery := fmt.Sprintf("kind:app %s", query)
 	
 	cmd := exec.Command("mdfind", mdFindQuery)
-	fmt.Println("Executing", cmd.Args)
 	var out bytes.Buffer
 	cmd.Stdout = &out
 	
