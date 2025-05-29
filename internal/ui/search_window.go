@@ -20,7 +20,7 @@ const (
 	searchBarHeight = 50
 	resultRowHeight = 70
 	cornerRadius    = 10
-	iconWidth       = 36
+	iconWidth       = 48  // Increased icon width for better app icon display
 	descMaxLines    = 2
 )
 
@@ -72,6 +72,7 @@ func (r *SearchResultItem) CreateRenderer() fyne.WidgetRenderer {
 	descriptionText.TextStyle = fyne.TextStyle{}
 	descriptionText.TextSize = 14
 	
+	// Create a properly sized icon
 	icon := widget.NewIcon(r.Icon)
 	
 	// Create a fixed width container for text to prevent overflow
@@ -84,14 +85,19 @@ func (r *SearchResultItem) CreateRenderer() fyne.WidgetRenderer {
 	// Limit the text container's width
 	textWrapper := container.NewStack(textContainer)
 	
-	// Add padding around the icon
-	// Create a nice container for the icon with proper padding and centering
+	// Create a nicer icon container with fixed size and proper scaling
 	iconSize := fyne.NewSize(iconWidth, iconWidth)
 	icon.Resize(iconSize)
 	
+	// Create a container that properly centers and scales the icon
+	iconWrapper := container.New(
+		layout.NewCenterLayout(),
+		icon,
+	)
+	
 	iconContainer := container.New(
 		layout.NewPaddedLayout(),
-		container.New(layout.NewCenterLayout(), icon),
+		iconWrapper,
 	)
 	iconContainer.Move(fyne.NewPos(8, 8))
 	
@@ -102,12 +108,12 @@ func (r *SearchResultItem) CreateRenderer() fyne.WidgetRenderer {
 	)
 
 	// Set background color based on selection state and add rounded corners
-		if r.IsSelected {
-			r.background.FillColor = color.NRGBA{R: 35, G: 57, B: 83, A: 255} // #233953 - darker blue for selection
-		} else {
-			r.background.FillColor = color.NRGBA{R: 18, G: 23, B: 32, A: 255} // Slightly lighter than default for contrast
-		}
-		r.background.CornerRadius = 6 // Add rounded corners to results
+	if r.IsSelected {
+		r.background.FillColor = color.NRGBA{R: 35, G: 57, B: 83, A: 255} // #233953 - darker blue for selection
+	} else {
+		r.background.FillColor = color.NRGBA{R: 18, G: 23, B: 32, A: 255} // Slightly lighter than default for contrast
+	}
+	r.background.CornerRadius = 6 // Add rounded corners to results
 
 	return &searchResultRenderer{
 		result:     r,
@@ -126,7 +132,7 @@ func (r *SearchResultItem) Tapped(*fyne.PointEvent) {
 
 // MinSize returns the minimum size of the result
 func (r *SearchResultItem) MinSize() fyne.Size {
-	// Add a bit more height for better spacing between items
+	// Add a bit more height for better icon display and spacing between items
 	return fyne.NewSize(defaultWidth, resultRowHeight)
 }
 

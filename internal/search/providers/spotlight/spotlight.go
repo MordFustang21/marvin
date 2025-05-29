@@ -9,6 +9,7 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/theme"
 	"github.com/MordFustang21/marvin-go/internal/search"
+	"github.com/MordFustang21/marvin-go/internal/util"
 )
 
 // Provider is a search provider that uses macOS Spotlight
@@ -143,10 +144,11 @@ func (p *Provider) getParentDirectory(path string) string {
 // determineKindAndIcon determines the kind and icon based on the file path
 func (p *Provider) determineKindAndIcon(path string) (kind string, icon fyne.Resource) {
 	if strings.HasSuffix(path, ".app") {
-		return "application", theme.ComputerIcon()
+		// Use our custom icon extraction utility for app bundles
+		return "application", util.GetAppIcon(path)
 	} else if strings.Contains(path, ".") {
-		// This is a simplistic check for files
-		return "file", theme.DocumentIcon()
+		// Get an appropriate icon based on file type
+		return "file", util.GetSystemIcon(path)
 	} else {
 		// Default to folder
 		return "folder", theme.FolderIcon()
