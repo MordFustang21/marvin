@@ -396,8 +396,7 @@ func (sw *SearchWindow) Close() {
 
 // performSearch executes the search and updates the UI
 func (sw *SearchWindow) performSearch(query string) {
-	// We'll update the UI directly since we're likely already on the main thread
-	// If needed, fyne will handle thread safety internally
+	// Remove all previous results and reset state
 	sw.resultsList.RemoveAll()
 	sw.results = nil
 	sw.resultItems = nil
@@ -407,54 +406,75 @@ func (sw *SearchWindow) performSearch(query string) {
 		return
 	}
 
-	results, err := sw.registry.Search(query)
-	if err != nil {
-		// Show error in the UI
-		sw.resultsList.Add(widget.NewLabel("Error: " + err.Error()))
-		return
-	}
+	resultsCh := make(chan []search.SearchResult)
+	errCh := make(chan error)
+	doneCh := make(chan struct{})
 
-	if len(results) == 0 {
-		sw.resultsList.Add(widget.NewLabel("No results found"))
-		return
-	}
+	go sw.registry.SearchAsync(query, resultsCh, errCh, doneCh)
 
-	// Store the results
-	sw.results = results
-	sw.resultItems = make([]*SearchResultItem, 0, len(results))
+	// Track if we've shown any results yet
+	var anyResults bool
 
-	// Add results to the list
-	for i, result := range results {
-		// Create a search result item
-		resultItem := NewSearchResult(result)
-
-		// Truncate long descriptions
-		if len(resultItem.Description) > 120 {
-			resultItem.Description = resultItem.Description[:117] + "..."
-		}
-
-		// Configure the action to hide the window after execution
-		originalAction := resultItem.OnTap
-		resultItem.OnTap = func() {
-			if originalAction != nil {
-				originalAction()
+	go func() {
+		for {
+			select {
+			case results, ok := <-resultsCh:
+				if !ok {
+					return
+				}
+				if len(results) == 0 {
+					continue
+				}
+				// Add results to the UI directly (assuming we're safe to do so)
+				// If this is the first batch, clear "No results" or error label
+				if !anyResults {
+					sw.resultsList.RemoveAll()
+					sw.results = nil
+					sw.resultItems = nil
+					sw.selectedIndex = 0
+				}
+				anyResults = true
+				for _, result := range results {
+					resultItem := NewSearchResult(result)
+					// Truncate long descriptions
+					if len(resultItem.Description) > 120 {
+						resultItem.Description = resultItem.Description[:117] + "..."
+					}
+					// Configure the action to hide the window after execution
+					originalAction := resultItem.OnTap
+					resultItem.OnTap = func() {
+						if originalAction != nil {
+							originalAction()
+						}
+						sw.Hide() // Hide the window after selection
+					}
+					// Only select the first item if this is the first batch and first item
+					resultItem.IsSelected = (len(sw.resultItems) == 0)
+					sw.resultItems = append(sw.resultItems, resultItem)
+					sw.resultsList.Add(resultItem)
+				}
+				sw.resultsList.Refresh()
+				// Select the first result by default if we have results
+				if len(sw.resultItems) > 0 && sw.selectedIndex == 0 {
+					sw.selectResult(0)
+				}
+			case err, ok := <-errCh:
+				if ok && err != nil {
+					sw.resultsList.RemoveAll()
+					sw.resultsList.Add(widget.NewLabel("Error: " + err.Error()))
+					sw.resultsList.Refresh()
+				}
+			case <-doneCh:
+				// If no results were shown, show "No results found"
+				if !anyResults {
+					sw.resultsList.RemoveAll()
+					sw.resultsList.Add(widget.NewLabel("No results found"))
+					sw.resultsList.Refresh()
+				}
+				return
 			}
-			sw.Hide() // Hide the window after selection
 		}
-
-		// Set selected state for the first item only
-		resultItem.IsSelected = (i == 0)
-
-		sw.resultItems = append(sw.resultItems, resultItem)
-		sw.resultsList.Add(resultItem)
-	}
-
-	sw.resultsList.Refresh()
-
-	// Select the first result by default if we have results
-	if len(sw.resultItems) > 0 {
-		sw.selectResult(0)
-	}
+	}()
 }
 
 // ShowWithKeyboardFocus shows the search window and focuses the search input

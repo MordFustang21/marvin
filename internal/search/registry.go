@@ -28,20 +28,17 @@ func (r *Registry) RegisterProvider(provider Provider) {
 	})
 }
 
-// Search performs a search across all registered providers concurrently
-func (r *Registry) Search(query string) ([]SearchResult, error) {
+// SearchAsync performs a search and sends results as they arrive.
+func (r *Registry) SearchAsync(query string, resultsCh chan<- []SearchResult, errCh chan<- error, doneCh chan<- struct{}) {
 	if query == "" {
-		return []SearchResult{}, nil
+		close(resultsCh)
+		if doneCh != nil {
+			doneCh <- struct{}{}
+		}
+		return
 	}
 
-	var (
-		allResults []SearchResult
-		mu         sync.Mutex
-		wg         sync.WaitGroup
-	)
-
-	resultsCh := make(chan []SearchResult)
-	errCh := make(chan error)
+	var wg sync.WaitGroup
 	providerCount := 0
 
 	for _, provider := range r.providers {
@@ -54,44 +51,27 @@ func (r *Registry) Search(query string) ([]SearchResult, error) {
 			defer wg.Done()
 			results, err := p.Search(query)
 			if err != nil {
-				errCh <- err
+				if errCh != nil {
+					errCh <- err
+				}
 				return
 			}
-			resultsCh <- results
+			if len(results) > 0 {
+				resultsCh <- results
+			}
 		}(provider)
 	}
 
-	// Close channels when all goroutines are done
 	go func() {
 		wg.Wait()
 		close(resultsCh)
-		close(errCh)
-	}()
-
-	var lastErr error
-	received := 0
-	for received < providerCount {
-		select {
-		case results, ok := <-resultsCh:
-			if ok {
-				mu.Lock()
-				allResults = append(allResults, results...)
-				mu.Unlock()
-				received++
-			}
-		case err, ok := <-errCh:
-			if ok {
-				lastErr = err
-				received++
-			}
+		if errCh != nil {
+			close(errCh)
 		}
-	}
-
-	if len(allResults) == 0 && lastErr != nil {
-		return nil, fmt.Errorf("search failed: %w", lastErr)
-	}
-
-	return allResults, nil
+		if doneCh != nil {
+			doneCh <- struct{}{}
+		}
+	}()
 }
 
 // ExecuteResult triggers the execution of a specific search result

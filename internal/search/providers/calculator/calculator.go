@@ -63,11 +63,6 @@ func (p *Provider) parseAndCalculate(expr string) (float64, error) {
 	return res, nil
 }
 
-// isDigit checks if a character is a digit
-func isDigit(c byte) bool {
-	return c >= '0' && c <= '9'
-}
-
 // Search performs a calculation for the given query and returns results
 func (p *Provider) Search(query string) ([]search.SearchResult, error) {
 	// Remove any spaces to standardize input
