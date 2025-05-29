@@ -160,6 +160,7 @@ func NewSearchWindow(app fyne.App) *SearchWindow {
 	// Create a custom styled search input
 	searchInput := widget.NewEntry()
 	searchInput.SetPlaceHolder("Search...")
+	
 
 	resultsList := container.NewVBox()
 	resultsScroll := container.NewScroll(resultsList)
@@ -171,6 +172,12 @@ func NewSearchWindow(app fyne.App) *SearchWindow {
 		resultsList: resultsList,
 		searcher:    searcher,
 		isFrameless: true,
+	}
+	
+	// Create trigger for search on input submission.
+	// This is so we can launch a selected search result.
+	searchInput.OnSubmitted = func(text string) {
+		searchWindow.launchSelectedResult()
 	}
 
 	// Set window attributes after creation
