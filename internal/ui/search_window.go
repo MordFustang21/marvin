@@ -11,6 +11,7 @@ import (
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/widget"
 	"github.com/MordFustang21/marvin-go/internal/search"
+	"github.com/MordFustang21/marvin-go/internal/util"
 )
 
 const (
@@ -226,7 +227,7 @@ func NewSearchWindow(app fyne.App, registry *search.Registry) *SearchWindow {
 
 	// Create a custom styled search input
 	searchInput := widget.NewEntry()
-	searchInput.SetPlaceHolder("Type to search or calculate...")
+	searchInput.SetPlaceHolder(util.GetRandomQuote())
 	searchInput.TextStyle = fyne.TextStyle{Bold: true}
 	// Entry text size is controlled by theme
 
@@ -242,9 +243,6 @@ func NewSearchWindow(app fyne.App, registry *search.Registry) *SearchWindow {
 		isFrameless: true,
 	}
 	
-	// Set a nice placeholder theme
-	searchInput.PlaceHolder = "Type to search apps or perform calculations..."
-
 	// Create trigger for search on input submission.
 	// This is so we can launch a selected search result.
 	searchInput.OnSubmitted = func(text string) {
