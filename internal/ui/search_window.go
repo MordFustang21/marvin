@@ -7,6 +7,7 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/driver/desktop"
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
@@ -38,7 +39,7 @@ type SearchResult struct {
 func NewSearchResult(title, description, path string, icon fyne.Resource, onTap func()) *SearchResult {
 	bgColor := color.NRGBA{R: 13, G: 17, B: 23, A: 255} // Default background color
 	background := canvas.NewRectangle(bgColor)
-	
+
 	result := &SearchResult{
 		Title:       title,
 		Description: description,
@@ -55,13 +56,13 @@ func NewSearchResult(title, description, path string, icon fyne.Resource, onTap 
 func (r *SearchResult) CreateRenderer() fyne.WidgetRenderer {
 	title := widget.NewLabel(r.Title)
 	title.TextStyle = fyne.TextStyle{Bold: true}
-	
+
 	description := widget.NewLabel(r.Description)
 	description.TextStyle = fyne.TextStyle{}
 	description.Wrapping = fyne.TextWrapWord
-	
+
 	icon := widget.NewIcon(r.Icon)
-	
+
 	content := container.New(
 		layout.NewHBoxLayout(),
 		container.NewPadded(icon),
@@ -71,14 +72,14 @@ func (r *SearchResult) CreateRenderer() fyne.WidgetRenderer {
 			description,
 		),
 	)
-	
+
 	// Set background color based on selection state
 	if r.IsSelected {
 		r.background.FillColor = color.NRGBA{R: 35, G: 57, B: 83, A: 255} // #233953 - darker blue for selection
 	} else {
 		r.background.FillColor = color.NRGBA{R: 13, G: 17, B: 23, A: 255} // #0d1117 - default dark bg
 	}
-	
+
 	return &searchResultRenderer{
 		result:     r,
 		content:    content,
@@ -128,21 +129,27 @@ func (r *searchResultRenderer) Destroy() {}
 
 // SearchWindow represents the main search window of the application
 type SearchWindow struct {
-	window          fyne.Window
-	searchInput     *widget.Entry
-	resultsList     *fyne.Container
-	searcher        *search.SpotlightSearcher
-	timer           *time.Timer
-	isFrameless     bool
-	selectedIndex   int
-	results         []search.SpotlightResult
-	resultItems     []*SearchResult
-	hasFocus        bool
+	window        fyne.Window
+	searchInput   *widget.Entry
+	resultsList   *fyne.Container
+	searcher      *search.SpotlightSearcher
+	timer         *time.Timer
+	isFrameless   bool
+	selectedIndex int
+	results       []search.SpotlightResult
+	resultItems   []*SearchResult
+	hasFocus      bool
 }
 
 // NewSearchWindow creates a new search window
 func NewSearchWindow(app fyne.App) *SearchWindow {
-	window := app.NewWindow("Marvin")
+	var window fyne.Window
+	if drv, ok := app.Driver().(desktop.Driver); ok {
+		window = drv.CreateSplashWindow()
+	} else {
+		window = app.NewWindow("Marvin")
+	}
+	
 	window.SetFixedSize(true)
 	window.Resize(fyne.NewSize(defaultWidth, defaultHeight))
 	window.CenterOnScreen()
@@ -160,7 +167,6 @@ func NewSearchWindow(app fyne.App) *SearchWindow {
 	// Create a custom styled search input
 	searchInput := widget.NewEntry()
 	searchInput.SetPlaceHolder("Search...")
-	
 
 	resultsList := container.NewVBox()
 	resultsScroll := container.NewScroll(resultsList)
@@ -173,7 +179,7 @@ func NewSearchWindow(app fyne.App) *SearchWindow {
 		searcher:    searcher,
 		isFrameless: true,
 	}
-	
+
 	// Create trigger for search on input submission.
 	// This is so we can launch a selected search result.
 	searchInput.OnSubmitted = func(text string) {
@@ -241,25 +247,25 @@ func (sw *SearchWindow) selectResult(index int) {
 	if len(sw.resultItems) == 0 {
 		return
 	}
-	
+
 	// Ensure index is valid
 	if index < 0 {
 		index = 0
 	} else if index >= len(sw.resultItems) {
 		index = len(sw.resultItems) - 1
 	}
-	
+
 	// Deselect current selection
 	if sw.selectedIndex >= 0 && sw.selectedIndex < len(sw.resultItems) {
 		sw.resultItems[sw.selectedIndex].IsSelected = false
 		sw.resultItems[sw.selectedIndex].Refresh()
 	}
-	
+
 	// Select the new item
 	sw.selectedIndex = index
 	sw.resultItems[index].IsSelected = true
 	sw.resultItems[index].Refresh()
-	
+
 	// Ensure the selected item is visible in the scroll container
 	// (This would need custom scroll logic if we had implemented scroll visibility control)
 }
@@ -269,12 +275,12 @@ func (sw *SearchWindow) selectNextResult() {
 	if len(sw.resultItems) == 0 {
 		return
 	}
-	
+
 	nextIndex := sw.selectedIndex + 1
 	if nextIndex >= len(sw.resultItems) {
 		nextIndex = 0 // Wrap around
 	}
-	
+
 	sw.selectResult(nextIndex)
 }
 
@@ -283,12 +289,12 @@ func (sw *SearchWindow) selectPreviousResult() {
 	if len(sw.resultItems) == 0 {
 		return
 	}
-	
+
 	prevIndex := sw.selectedIndex - 1
 	if prevIndex < 0 {
 		prevIndex = len(sw.resultItems) - 1 // Wrap around
 	}
-	
+
 	sw.selectResult(prevIndex)
 }
 
@@ -326,7 +332,7 @@ func (sw *SearchWindow) performSearch(query string) {
 	sw.resultsList.RemoveAll()
 	sw.results = nil
 	sw.resultItems = nil
-	sw.selectedIndex = 0  // Start with first item selected
+	sw.selectedIndex = 0 // Start with first item selected
 
 	if query == "" {
 		return
@@ -364,7 +370,7 @@ func (sw *SearchWindow) performSearch(query string) {
 
 		// Create closure for the item's path for tap handling
 		path := result.Path
-		
+
 		// Create a search result item
 		resultItem := NewSearchResult(
 			result.Name,
@@ -376,7 +382,7 @@ func (sw *SearchWindow) performSearch(query string) {
 				sw.Hide() // Hide the window after selection
 			},
 		)
-		
+
 		// Set selected state for the first item only
 		resultItem.IsSelected = (i == 0)
 
@@ -385,7 +391,7 @@ func (sw *SearchWindow) performSearch(query string) {
 	}
 
 	sw.resultsList.Refresh()
-	
+
 	// Select the first result by default if we have results
 	if len(sw.resultItems) > 0 {
 		sw.selectResult(0)
