@@ -459,6 +459,8 @@ func (sw *SearchWindow) ShowWithKeyboardFocus() {
 	sw.show = true
 	sw.Show()
 	sw.window.Canvas().Focus(sw.searchInput)
+	// Lets select all the text in the search input so that typing replaces it
+	sw.searchInput.SetText("")
 }
 
 // ClearSearch clears the current search query and results

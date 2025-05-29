@@ -3,6 +3,7 @@ package search
 import (
 	"fmt"
 	"sort"
+	"sync"
 )
 
 // Registry manages search providers and dispatches search requests
@@ -27,37 +28,69 @@ func (r *Registry) RegisterProvider(provider Provider) {
 	})
 }
 
-// Search performs a search across all registered providers
+// Search performs a search across all registered providers concurrently
 func (r *Registry) Search(query string) ([]SearchResult, error) {
 	if query == "" {
 		return []SearchResult{}, nil
 	}
-	
-	var allResults []SearchResult
-	var lastErr error
-	
+
+	var (
+		allResults []SearchResult
+		mu         sync.Mutex
+		wg         sync.WaitGroup
+	)
+
+	resultsCh := make(chan []SearchResult)
+	errCh := make(chan error)
+	providerCount := 0
+
 	for _, provider := range r.providers {
-		// Skip providers that can't handle this query
 		if !provider.CanHandle(query) {
 			continue
 		}
-		
-		// Perform search with this provider
-		results, err := provider.Search(query)
-		if err != nil {
-			lastErr = err
-			continue
-		}
-		
-		// Add results
-		allResults = append(allResults, results...)
+		providerCount++
+		wg.Add(1)
+		go func(p Provider) {
+			defer wg.Done()
+			results, err := p.Search(query)
+			if err != nil {
+				errCh <- err
+				return
+			}
+			resultsCh <- results
+		}(provider)
 	}
-	
-	// If we have results but also errors, we'll still return the results we found
+
+	// Close channels when all goroutines are done
+	go func() {
+		wg.Wait()
+		close(resultsCh)
+		close(errCh)
+	}()
+
+	var lastErr error
+	received := 0
+	for received < providerCount {
+		select {
+		case results, ok := <-resultsCh:
+			if ok {
+				mu.Lock()
+				allResults = append(allResults, results...)
+				mu.Unlock()
+				received++
+			}
+		case err, ok := <-errCh:
+			if ok {
+				lastErr = err
+				received++
+			}
+		}
+	}
+
 	if len(allResults) == 0 && lastErr != nil {
 		return nil, fmt.Errorf("search failed: %w", lastErr)
 	}
-	
+
 	return allResults, nil
 }
 
@@ -69,7 +102,7 @@ func (r *Registry) ExecuteResult(result SearchResult) error {
 			return provider.Execute(result)
 		}
 	}
-	
+
 	return fmt.Errorf("no provider found for result type %s", result.Type)
 }
 
