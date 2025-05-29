@@ -21,20 +21,20 @@ const (
 	searchBarHeight = 50
 	resultRowHeight = 70
 	cornerRadius    = 10
-	iconWidth       = 48  // Increased icon width for better app icon display
+	iconWidth       = 48 // Increased icon width for better app icon display
 	descMaxLines    = 2
 )
 
 // SearchResultItem represents a visual row in the search results
 type SearchResultItem struct {
 	widget.BaseWidget
-	Title       string
-	Description string
-	Path        string
-	Icon        fyne.Resource
-	OnTap       func()
-	IsSelected  bool
-	background  *canvas.Rectangle
+	Title        string
+	Description  string
+	Path         string
+	Icon         fyne.Resource
+	OnTap        func()
+	IsSelected   bool
+	background   *canvas.Rectangle
 	searchResult search.SearchResult // Reference to the original search result
 }
 
@@ -44,12 +44,12 @@ func NewSearchResult(result search.SearchResult) *SearchResultItem {
 	background := canvas.NewRectangle(bgColor)
 
 	resultItem := &SearchResultItem{
-		Title:       result.Title,
-		Description: result.Description,
-		Path:        result.Path,
-		Icon:        result.Icon,
-		OnTap:       result.Action,
-		background:  background,
+		Title:        result.Title,
+		Description:  result.Description,
+		Path:         result.Path,
+		Icon:         result.Icon,
+		OnTap:        result.Action,
+		background:   background,
 		searchResult: result,
 	}
 	resultItem.ExtendBaseWidget(resultItem)
@@ -61,47 +61,47 @@ func (r *SearchResultItem) CreateRenderer() fyne.WidgetRenderer {
 	title := widget.NewLabel(r.Title)
 	title.TextStyle = fyne.TextStyle{Bold: true}
 	// Title size is controlled by text style
-	
+
 	description := widget.NewLabel(r.Description)
 	description.TextStyle = fyne.TextStyle{}
 	description.Wrapping = fyne.TextWrapWord
 	description.Truncation = fyne.TextTruncateEllipsis
 	// Description size is controlled by text style
-	
+
 	// Ensure description is a lighter color to differentiate from title
 	descriptionText := canvas.NewText(r.Description, color.NRGBA{R: 160, G: 170, B: 180, A: 220})
 	descriptionText.TextStyle = fyne.TextStyle{}
 	descriptionText.TextSize = 14
-	
+
 	// Create a properly sized icon
 	icon := widget.NewIcon(r.Icon)
-	
+
 	// Create a fixed width container for text to prevent overflow
 	textContainer := container.New(
 		layout.NewVBoxLayout(),
 		title,
 		descriptionText,
 	)
-	
+
 	// Limit the text container's width
 	textWrapper := container.NewStack(textContainer)
-	
+
 	// Create a nicer icon container with fixed size and proper scaling
 	iconSize := fyne.NewSize(iconWidth, iconWidth)
 	icon.Resize(iconSize)
-	
+
 	// Create a container that properly centers and scales the icon
 	iconWrapper := container.New(
 		layout.NewCenterLayout(),
 		icon,
 	)
-	
+
 	iconContainer := container.New(
 		layout.NewPaddedLayout(),
 		iconWrapper,
 	)
 	iconContainer.Move(fyne.NewPos(8, 8))
-	
+
 	content := container.New(
 		layout.NewHBoxLayout(),
 		iconContainer,
@@ -151,12 +151,12 @@ type searchResultRenderer struct {
 
 func (r *searchResultRenderer) Layout(size fyne.Size) {
 	r.background.Resize(size)
-	
+
 	// Leave a small margin on the right and add some vertical padding
 	contentSize := fyne.NewSize(size.Width-16, size.Height-8)
 	r.content.Resize(contentSize)
 	r.content.Move(fyne.NewPos(4, 4))
-	
+
 	// Add a subtle separator at the bottom of each result
 	if !r.result.IsSelected {
 		// Draw a subtle separator line except for selected items
@@ -200,6 +200,8 @@ type SearchWindow struct {
 	results       []search.SearchResult
 	resultItems   []*SearchResultItem
 	hasFocus      bool
+	// show is used to track if the window is currently visible.
+	show bool
 }
 
 // NewSearchWindow creates a new search window
@@ -210,7 +212,7 @@ func NewSearchWindow(app fyne.App, registry *search.Registry) *SearchWindow {
 	} else {
 		window = app.NewWindow("Marvin")
 	}
-	
+
 	window.SetFixedSize(true)
 	window.Resize(fyne.NewSize(defaultWidth, defaultHeight))
 	window.CenterOnScreen()
@@ -242,7 +244,7 @@ func NewSearchWindow(app fyne.App, registry *search.Registry) *SearchWindow {
 		registry:    registry,
 		isFrameless: true,
 	}
-	
+
 	// Create trigger for search on input submission.
 	// This is so we can launch a selected search result.
 	searchInput.OnSubmitted = func(text string) {
@@ -377,6 +379,7 @@ func (sw *SearchWindow) Show() {
 
 // Hide hides the search window
 func (sw *SearchWindow) Hide() {
+	sw.show = false
 	sw.window.Hide()
 }
 
@@ -421,12 +424,12 @@ func (sw *SearchWindow) performSearch(query string) {
 	for i, result := range results {
 		// Create a search result item
 		resultItem := NewSearchResult(result)
-	
+
 		// Truncate long descriptions
-			if len(resultItem.Description) > 120 {
-				resultItem.Description = resultItem.Description[:117] + "..."
-			}
-	
+		if len(resultItem.Description) > 120 {
+			resultItem.Description = resultItem.Description[:117] + "..."
+		}
+
 		// Configure the action to hide the window after execution
 		originalAction := resultItem.OnTap
 		resultItem.OnTap = func() {
@@ -453,6 +456,7 @@ func (sw *SearchWindow) performSearch(query string) {
 
 // ShowWithKeyboardFocus shows the search window and focuses the search input
 func (sw *SearchWindow) ShowWithKeyboardFocus() {
+	sw.show = true
 	sw.Show()
 	sw.window.Canvas().Focus(sw.searchInput)
 }
@@ -465,8 +469,7 @@ func (sw *SearchWindow) ClearSearch() {
 
 // IsVisible returns whether the window is currently visible
 func (sw *SearchWindow) IsVisible() bool {
-	// A simpler implementation that checks if the window has been closed
-	return sw.window != nil && sw.window.Content() != nil
+	return sw.show
 }
 
 // GetWindow provides access to the underlying window object

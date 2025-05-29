@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
@@ -11,6 +12,7 @@ import (
 	"github.com/MordFustang21/marvin-go/internal/search/providers/spotlight"
 	"github.com/MordFustang21/marvin-go/internal/theme"
 	"github.com/MordFustang21/marvin-go/internal/ui"
+	hook "github.com/robotn/gohook"
 )
 
 func main() {
@@ -33,8 +35,21 @@ func main() {
 		w.SetPadded(false)
 		w.SetTitle("")
 	}
-	
+
 	// TODO: Setup shortcuts for cmd+space to toggle the window.
+	go func() {
+		hook.Register(hook.KeyDown, []string{"cmd", "space"}, func(e hook.Event) {
+			fmt.Println("Toggling window")
+			// Toggle the search window visibility
+			if searchWindow.IsVisible() {
+				searchWindow.Hide()
+			} else {
+				searchWindow.ShowWithKeyboardFocus()
+			}
+		})
+
+		hook.Process(hook.Start())
+	}()
 
 	// Show the window by default since our hotkey isn't working yet
 	searchWindow.ShowWithKeyboardFocus()
