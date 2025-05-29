@@ -6,7 +6,6 @@ Marvin is a lightweight Spotlight alternative built with Go and Fyne.io. It prov
 
 ## Features
 
-- Clean, GitHub Dark themed UI
 - Fast searching using macOS Spotlight index
 - Global hotkey activation (Cmd+Space)
 - File/application launching
