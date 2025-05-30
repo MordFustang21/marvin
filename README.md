@@ -50,13 +50,25 @@ Currently, Marvin has minimal configuration options. Future versions will includ
 
 Marvin is built using the following components:
 
-- **UI Layer**: Uses Fyne.io for cross-platform GUI
-- **Search Layer**: Interfaces with macOS Spotlight index
-- **Hotkey System**: Global keyboard shortcut handling
+- **UI Layer**: Uses Fyne.io for cross-platform GUI however only macOS is supported at the moment.
+- **Search Layer**: Is a registry of various providers that can provide various search/autocomplete results.
 
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
+
+## TODO
+- [] Improve performance and responsiveness.
+  - Optimize search algorithms.
+  - Implement caching for frequently accessed files.
+  - Track search history to improve results.
+- [] Implement themeing
+  - Allow users to customize the appearance of the application.
+  - Provide a set of pre-defined themes.
+- [] Implement settings
+  - Allow users to configure keyboard shortcuts.
+  - Provide options for enabling/disabling specific search providers.
+  - Allow users to set custom ordering of providers?
 
 ## License
 

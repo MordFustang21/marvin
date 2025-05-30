@@ -210,7 +210,7 @@ type SearchWindow struct {
 	// show is used to track if the window is currently visible.
 	show bool
 	// resultMap tracks results by their unique identifiers to prevent duplicates
-	resultMap     map[string]int
+	resultMap map[string]int
 }
 
 // NewSearchWindow creates a new search window
@@ -255,7 +255,12 @@ func NewSearchWindow(app fyne.App, registry *search.Registry) *SearchWindow {
 	searchInput.OnSpecialKey = func(key *fyne.KeyEvent) {
 		switch key.Name {
 		case fyne.KeyEscape:
-			window.Hide()
+			// Clear the search input or hide the window if empty.
+			if searchInput.Text != "" {
+				searchInput.SetText("")
+			} else {
+				searchWindow.Hide()
+			}
 		case fyne.KeyDown:
 			searchWindow.selectNextResult()
 		case fyne.KeyUp:
@@ -421,10 +426,10 @@ func (sw *SearchWindow) performSearch(query string) {
 
 	// Track if we've shown any results yet
 	var anyResults bool
-	
+
 	// Track results by provider type for proper ordering
 	resultsByType := make(map[search.ProviderType][]int)
-	
+
 	go func() {
 		for {
 			select {
@@ -435,7 +440,7 @@ func (sw *SearchWindow) performSearch(query string) {
 				if len(results) == 0 {
 					continue
 				}
-				
+
 				// If this is the first set of results, ensure the list is clean
 				if !anyResults {
 					sw.resultsList.RemoveAll()
@@ -443,18 +448,18 @@ func (sw *SearchWindow) performSearch(query string) {
 					sw.selectedIndex = 0
 				}
 				anyResults = true
-				
+
 				// Process new results
 				currentItemsCount := len(sw.resultItems)
 				for _, result := range results {
 					// Create a unique key for this result to prevent duplicates
 					resultKey := fmt.Sprintf("%s:%s", string(result.Type), result.Path)
-					
+
 					// Skip if we've already added this result
 					if _, exists := sw.resultMap[resultKey]; exists {
 						continue
 					}
-					
+
 					resultItem := NewSearchResult(result)
 					// Truncate long descriptions
 					if len(resultItem.Description) > 120 {
@@ -468,16 +473,16 @@ func (sw *SearchWindow) performSearch(query string) {
 						}
 						sw.Hide() // Hide the window after selection
 					}
-					
+
 					// Track the item by provider type
 					resultIndex := len(sw.resultItems)
 					resultsByType[result.Type] = append(resultsByType[result.Type], resultIndex)
-					
+
 					// Add result to our data structures and mark as added
 					sw.resultItems = append(sw.resultItems, resultItem)
 					sw.resultMap[resultKey] = resultIndex
 				}
-				
+
 				// If we just got a first batch of results, build the UI
 				// This handles initial results
 				if currentItemsCount == 0 && len(sw.resultItems) > 0 {
@@ -498,12 +503,12 @@ func (sw *SearchWindow) performSearch(query string) {
 						sw.resultsList.Add(item)
 					}
 				}
-				
+
 				// Refresh the UI
 				fyne.Do(func() {
 					sw.resultsList.Refresh()
 				})
-				
+
 			case err, ok := <-errCh:
 				if ok && err != nil {
 					sw.resultsList.RemoveAll()

@@ -2,9 +2,11 @@ package spotlight
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"log"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"fyne.io/fyne/v2"
@@ -13,7 +15,7 @@ import (
 	"github.com/MordFustang21/marvin-go/internal/util"
 )
 
-// Provider is a search provider that uses macOS Spotlight
+// CachedResultProvider is a search provider that uses macOS Spotlight
 type Provider struct {
 	priority   int
 	maxResults int
@@ -86,29 +88,73 @@ func (p *Provider) Search(query string) ([]search.SearchResult, error) {
 		}
 
 		// Get file metadata
-		_, iconResource := p.determineKindAndIcon(path)
-
-		name := p.extractNameFromPath(path)
+		kind, iconResource := p.determineKindAndIcon(path)
 
 		// Create closure for the item's path for action handling
 		pathCopy := path // Copy to avoid closure capturing loop variable
 
-		// Create a more user-friendly description
-		var description string
-		if strings.HasSuffix(pathCopy, ".app") {
-			description = "Application"
-		} else {
-			// Get parent directory for files
-			parentDir := p.getParentDirectory(pathCopy)
-			if parentDir != "" {
-				description = "in " + parentDir
+		var title, description string
+
+		// Try to get metadata using mdls first as it's faster
+		mdlsInfo := p.extractMdlsMetadata(path)
+
+		if kind == "application" && strings.HasSuffix(path, ".app") {
+			// Extract app bundle information for better display
+			appInfo := p.extractAppBundleInfo(path)
+
+			// Use the bundle display name if available, otherwise fallback to filename
+			if appInfo.DisplayName != "" {
+				title = appInfo.DisplayName
 			} else {
-				description = pathCopy
+				title = p.extractNameFromPath(path)
+			}
+
+			// Use the bundle description if available
+			if appInfo.Description != "" {
+				description = appInfo.Description
+			} else if appInfo.ShortVersion != "" {
+				description = fmt.Sprintf("Version %s", appInfo.ShortVersion)
+			} else {
+				// Try to get more metadata using mdls as fallback
+				mdlsInfo := p.extractMdlsMetadata(path)
+				if mdlsInfo.KindDisplayName != "" {
+					description = mdlsInfo.KindDisplayName
+				} else if mdlsInfo.Version != "" {
+					description = fmt.Sprintf("Version %s", mdlsInfo.Version)
+				} else if mdlsInfo.Description != "" {
+					description = mdlsInfo.Description
+				} else if mdlsInfo.Developer != "" {
+					description = "By " + mdlsInfo.Developer
+				} else {
+					description = "Application"
+				}
+			}
+		} else {
+			// Use display name from mdls if available, otherwise use filename
+			if mdlsInfo.DisplayName != "" {
+				title = mdlsInfo.DisplayName
+			} else {
+				title = p.extractNameFromPath(path)
+			}
+
+			// Use the most informative description available
+			if mdlsInfo.Description != "" {
+				description = mdlsInfo.Description
+			} else if mdlsInfo.KindDisplayName != "" {
+				description = mdlsInfo.KindDisplayName
+			} else {
+				// Get parent directory for files
+				parentDir := p.getParentDirectory(pathCopy)
+				if parentDir != "" {
+					description = "in " + parentDir
+				} else {
+					description = pathCopy
+				}
 			}
 		}
 
 		results = append(results, search.SearchResult{
-			Title:       name,
+			Title:       title,
 			Description: description,
 			Path:        path,
 			Icon:        iconResource,
@@ -150,12 +196,12 @@ func (p *Provider) determineKindAndIcon(path string) (kind string, icon fyne.Res
 	if strings.HasSuffix(path, ".app") {
 		// Use our custom icon extraction utility for app bundles
 		return "application", util.GetAppIcon(path)
-	} else if strings.Contains(path, ".") {
+	} else if strings.HasSuffix(path, "/") || !strings.Contains(filepath.Base(path), ".") {
+		// More reliable folder detection - ends with slash or has no extension
+		return "folder", theme.FolderIcon()
+	} else {
 		// Get an appropriate icon based on file type
 		return "file", util.GetSystemIcon(path)
-	} else {
-		// Default to folder
-		return "folder", theme.FolderIcon()
 	}
 }
 
@@ -170,6 +216,144 @@ func (p *Provider) Execute(result search.SearchResult) error {
 	}
 
 	return nil
+}
+
+// AppBundleInfo stores information extracted from an app bundle's Info.plist
+type AppBundleInfo struct {
+	DisplayName      string
+	BundleID         string
+	Description      string
+	ShortVersion     string
+	Version          string
+	MinimumOSVersion string
+}
+
+// MdlsMetadata stores metadata extracted from mdls command
+type MdlsMetadata struct {
+	DisplayName     string
+	KindDisplayName string
+	Version         string
+	ContentType     string
+	ContentTypeTree []string
+	LastUsedDate    string
+	Developer       string
+	Description     string
+}
+
+// extractAppBundleInfo gets metadata from an app bundle's Info.plist
+func (p *Provider) extractAppBundleInfo(appPath string) AppBundleInfo {
+	info := AppBundleInfo{}
+
+	// Path to the Info.plist file in the app bundle
+	infoPlist := filepath.Join(appPath, "Contents", "Info.plist")
+
+	// Extract display name (CFBundleDisplayName or CFBundleName)
+	info.DisplayName = p.getPlistValue(infoPlist, "CFBundleDisplayName")
+	if info.DisplayName == "" {
+		info.DisplayName = p.getPlistValue(infoPlist, "CFBundleName")
+	}
+
+	// If still no display name, use the filename without .app
+	if info.DisplayName == "" {
+		name := p.extractNameFromPath(appPath)
+		if strings.HasSuffix(name, ".app") {
+			info.DisplayName = name[:len(name)-4]
+		} else {
+			info.DisplayName = name
+		}
+	}
+
+	// Extract other useful information
+	info.BundleID = p.getPlistValue(infoPlist, "CFBundleIdentifier")
+	info.ShortVersion = p.getPlistValue(infoPlist, "CFBundleShortVersionString")
+	info.Version = p.getPlistValue(infoPlist, "CFBundleVersion")
+	info.MinimumOSVersion = p.getPlistValue(infoPlist, "LSMinimumSystemVersion")
+
+	// Get copyright or other description that might be useful
+	copyright := p.getPlistValue(infoPlist, "NSHumanReadableCopyright")
+	if copyright != "" {
+		info.Description = copyright
+	}
+
+	return info
+}
+
+// extractMdlsMetadata gets additional metadata using mdls command
+func (p *Provider) extractMdlsMetadata(path string) MdlsMetadata {
+	info := MdlsMetadata{}
+
+	// Run mdls command to get metadata in JSON format
+	cmd := exec.Command("mdls", "-name", "kMDItemDisplayName",
+		"-name", "kMDItemVersion",
+		"-name", "kMDItemKind",
+		"-name", "kMDItemContentType",
+		"-name", "kMDItemContentTypeTree",
+		"-name", "kMDItemLastUsedDate",
+		"-name", "kMDItemDeveloper",
+		"-name", "kMDItemDescription",
+		"-name", "kMDItemComment",
+		"-json", path)
+
+	var out bytes.Buffer
+	cmd.Stdout = &out
+
+	err := cmd.Run()
+	if err != nil {
+		return info
+	}
+
+	// Parse JSON response
+	var result map[string]interface{}
+	if err := json.Unmarshal(out.Bytes(), &result); err != nil {
+		return info
+	}
+
+	// Extract values
+	if displayName, ok := result["kMDItemDisplayName"]; ok && displayName != nil {
+		info.DisplayName = fmt.Sprintf("%v", displayName)
+	}
+
+	if kind, ok := result["kMDItemKind"]; ok && kind != nil {
+		info.KindDisplayName = fmt.Sprintf("%v", kind)
+	}
+
+	if version, ok := result["kMDItemVersion"]; ok && version != nil {
+		info.Version = fmt.Sprintf("%v", version)
+	}
+
+	if developer, ok := result["kMDItemDeveloper"]; ok && developer != nil {
+		info.Developer = fmt.Sprintf("%v", developer)
+	}
+
+	if description, ok := result["kMDItemDescription"]; ok && description != nil {
+		info.Description = fmt.Sprintf("%v", description)
+	} else if comment, ok := result["kMDItemComment"]; ok && comment != nil {
+		info.Description = fmt.Sprintf("%v", comment)
+	}
+
+	return info
+}
+
+// getPlistValue uses PlistBuddy to extract a value from a plist file
+func (p *Provider) getPlistValue(plistPath, key string) string {
+	cmd := exec.Command("/usr/libexec/PlistBuddy", "-c", "Print :"+key, plistPath)
+	var out bytes.Buffer
+	cmd.Stdout = &out
+
+	// Ignore errors since some keys might not exist
+	err := cmd.Run()
+	if err != nil {
+		return ""
+	}
+
+	value := strings.TrimSpace(out.String())
+
+	// Handle PlistBuddy's "Does Not Exist" response
+	if strings.Contains(value, "Does Not Exist") {
+		return ""
+	}
+
+	return value
 }
 
 // OpenFile opens a file or application using the 'open' command
