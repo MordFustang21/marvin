@@ -1,0 +1,15 @@
+<svg width="200" height="200" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+  <!-- Head Circle -->
+  <circle cx="100" cy="100" r="80" fill="#d0d0d0" stroke="#666" stroke-width="3"/>
+
+  <!-- Visor Eyes: dual curved slits -->
+  <path d="M55 90 Q65 75 85 85 Q65 95 55 90 Z" fill="#3399ff"/>
+  <path d="M115 85 Q135 75 145 90 Q135 95 115 85 Z" fill="#3399ff"/>
+
+  <!-- Minimal Mouth: clean neutral line -->
+  <path d="M70 135 Q100 132 130 135" stroke="#444" stroke-width="3" fill="none" stroke-linecap="round"/>
+
+  <!-- Side Connectors -->
+  <rect x="15" y="95" width="8" height="10" fill="#888"/>
+  <rect x="177" y="95" width="8" height="10" fill="#888"/>
+</svg>

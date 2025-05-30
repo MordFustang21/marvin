@@ -11,6 +11,7 @@ import (
 	"github.com/MordFustang21/marvin-go/internal/search"
 	"github.com/MordFustang21/marvin-go/internal/search/providers/calculator"
 	"github.com/MordFustang21/marvin-go/internal/search/providers/spotlight"
+	"github.com/MordFustang21/marvin-go/internal/search/providers/web"
 	"github.com/MordFustang21/marvin-go/internal/theme"
 	"github.com/MordFustang21/marvin-go/internal/ui"
 	hook "github.com/robotn/gohook"
@@ -89,4 +90,7 @@ func setupSearchProviders(registry *search.Registry) {
 	// Register spotlight provider with lower priority
 	spotlightProvider := spotlight.NewProvider(100, 20) // Priority 100, max 20 results
 	registry.RegisterProvider(spotlightProvider)
+
+	webProvider := web.NewProvider(1)
+	registry.RegisterProvider(webProvider)
 }
