@@ -10,6 +10,7 @@ import (
 	"fyne.io/fyne/v2/driver/desktop"
 	"github.com/MordFustang21/marvin-go/internal/search"
 	"github.com/MordFustang21/marvin-go/internal/search/providers/calculator"
+	"github.com/MordFustang21/marvin-go/internal/search/providers/commands"
 	"github.com/MordFustang21/marvin-go/internal/search/providers/spotlight"
 	"github.com/MordFustang21/marvin-go/internal/search/providers/web"
 	"github.com/MordFustang21/marvin-go/internal/theme"
@@ -93,6 +94,10 @@ func setupSearchProviders(registry *search.Registry) {
 	// Register calculator provider with medium priority
 	calculatorProvider := calculator.NewProvider(2)
 	registry.RegisterProvider(calculatorProvider)
+	
+	// Register custom commands provider with medium-high priority
+	commandsProvider := commands.NewProvider(3, "")
+	registry.RegisterProvider(commandsProvider)
 
 	// Register web provider with lowest priority
 	webProvider := web.NewProvider(10) // Much lower priority than other providers

@@ -1,0 +1,52 @@
+{
+  "name": "Git Commands",
+  "description": "Common Git operations for quick access",
+  "icon": "icons/git-icon.png",
+  "commands": [
+    {
+      "name": "Git Status",
+      "trigger": "git status",
+      "description": "Show status of working directory",
+      "action": {
+        "type": "shell",
+        "command": "cd ~ && git status"
+      }
+    },
+    {
+      "name": "Git Pull",
+      "trigger": "git pull",
+      "description": "Pull latest changes from remote",
+      "action": {
+        "type": "shell",
+        "command": "cd ~ && git pull"
+      }
+    },
+    {
+      "name": "Git Push",
+      "trigger": "git push",
+      "description": "Push committed changes to remote",
+      "action": {
+        "type": "shell",
+        "command": "cd ~ && git push"
+      }
+    },
+    {
+      "name": "Git Commit",
+      "trigger": "git commit",
+      "description": "Commit staged changes",
+      "action": {
+        "type": "shell",
+        "command": "cd ~ && git commit -m \"Quick commit from Marvin\""
+      }
+    },
+    {
+      "name": "Git Log",
+      "trigger": "git log",
+      "description": "Show commit history",
+      "action": {
+        "type": "shell",
+        "command": "cd ~ && git log --oneline -n 10"
+      }
+    }
+  ]
+}

@@ -1,0 +1,79 @@
+{
+  "name": "System Tools",
+  "description": "Common system operations and utilities",
+  "icon": "icons/system-icon.png",
+  "commands": [
+    {
+      "name": "System Info",
+      "trigger": "sys info",
+      "description": "Display system information",
+      "action": {
+        "type": "shell",
+        "command": "system_profiler SPHardwareDataType | grep -v Serial"
+      }
+    },
+    {
+      "name": "Disk Usage",
+      "trigger": "disk usage",
+      "description": "Check disk space usage",
+      "action": {
+        "type": "shell",
+        "command": "df -h | grep -v /dev/vm"
+      }
+    },
+    {
+      "name": "Network Info",
+      "trigger": "network",
+      "description": "Display network interface information",
+      "action": {
+        "type": "shell",
+        "command": "ifconfig | grep 'inet ' | grep -v 127.0.0.1"
+      }
+    },
+    {
+      "name": "Running Processes",
+      "trigger": "processes",
+      "description": "Show top CPU-consuming processes",
+      "action": {
+        "type": "shell",
+        "command": "ps aux | head -20"
+      }
+    },
+    {
+      "name": "Memory Usage",
+      "trigger": "memory",
+      "description": "Display memory usage information",
+      "action": {
+        "type": "shell",
+        "command": "vm_stat"
+      }
+    },
+    {
+      "name": "System Preferences",
+      "trigger": "preferences",
+      "description": "Open System Preferences",
+      "action": {
+        "type": "application",
+        "path": "/System/Applications/System Preferences.app"
+      }
+    },
+    {
+      "name": "Terminal",
+      "trigger": "terminal",
+      "description": "Open Terminal app",
+      "action": {
+        "type": "application",
+        "path": "/System/Applications/Utilities/Terminal.app"
+      }
+    },
+    {
+      "name": "Apple Support",
+      "trigger": "support",
+      "description": "Open Apple Support website",
+      "action": {
+        "type": "url",
+        "url": "https://support.apple.com"
+      }
+    }
+  ]
+}
