@@ -223,9 +223,6 @@ func NewSearchWindow(app fyne.App, registry *search.Registry) *SearchWindow {
 	window.Resize(fyne.NewSize(defaultWidth, defaultHeight))
 	window.CenterOnScreen()
 
-	// Configure window for clean appearance
-	window.SetPadded(true)
-
 	// Create a custom styled search input
 	searchInput := NewSearchEntry()
 	searchInput.SetPlaceHolder(util.GetRandomQuote())

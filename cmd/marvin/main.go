@@ -87,13 +87,13 @@ func main() {
 // setupSearchProviders registers all search providers with the registry
 func setupSearchProviders(registry *search.Registry) {
 	// Register calculator provider with higher priority (lower number)
-	calculatorProvider := calculator.NewProvider(10)
+	calculatorProvider := calculator.NewProvider(2)
 	registry.RegisterProvider(calculatorProvider)
 
 	// Register spotlight provider with lower priority
-	spotlightProvider := spotlight.NewProvider(100, 20) // Priority 100, max 20 results
+	spotlightProvider := spotlight.NewProvider(1, 20) // Priority 100, max 20 results
 	registry.RegisterProvider(spotlightProvider)
 
-	webProvider := web.NewProvider(1)
+	webProvider := web.NewProvider(3)
 	registry.RegisterProvider(webProvider)
 }
