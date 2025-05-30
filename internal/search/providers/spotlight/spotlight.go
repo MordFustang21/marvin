@@ -3,6 +3,7 @@ package spotlight
 import (
 	"bytes"
 	"fmt"
+	"log"
 	"os/exec"
 	"strings"
 
@@ -23,7 +24,7 @@ func NewProvider(priority, maxResults int) *Provider {
 	if maxResults <= 0 {
 		maxResults = 20 // Default max results if invalid value provided
 	}
-	
+
 	return &Provider{
 		priority:   priority,
 		maxResults: maxResults,
@@ -55,43 +56,43 @@ func (p *Provider) Search(query string) ([]search.SearchResult, error) {
 	if query == "" {
 		return []search.SearchResult{}, nil
 	}
-	
+
 	// Format the mdfind query
 	// We'll search for applications, files, folders that match the query
 	mdFindQuery := fmt.Sprintf("kind:app %s", query)
-	
+
 	cmd := exec.Command("mdfind", mdFindQuery)
 	var out bytes.Buffer
 	cmd.Stdout = &out
-	
+
 	err := cmd.Run()
 	if err != nil {
 		return nil, fmt.Errorf("spotlight search failed: %w", err)
 	}
-	
+
 	// Process results
 	results := []search.SearchResult{}
 	paths := strings.Split(strings.TrimSpace(out.String()), "\n")
-	
+
 	// Limit results to maxResults
 	count := 0
 	for _, path := range paths {
 		if path == "" {
 			continue
 		}
-		
+
 		if count >= p.maxResults {
 			break
 		}
-		
+
 		// Get file metadata
 		_, iconResource := p.determineKindAndIcon(path)
-		
+
 		name := p.extractNameFromPath(path)
-		
+
 		// Create closure for the item's path for action handling
 		pathCopy := path // Copy to avoid closure capturing loop variable
-		
+
 		// Create a more user-friendly description
 		var description string
 		if strings.HasSuffix(pathCopy, ".app") {
@@ -113,13 +114,16 @@ func (p *Provider) Search(query string) ([]search.SearchResult, error) {
 			Icon:        iconResource,
 			Type:        search.TypeFile,
 			Action: func() {
-				OpenFile(pathCopy)
+				err := OpenFile(pathCopy)
+				if err != nil {
+					log.Println("error opening")
+				}
 			},
 		})
-		
+
 		count++
 	}
-	
+
 	return results, nil
 }
 
@@ -164,7 +168,7 @@ func (p *Provider) Execute(result search.SearchResult) error {
 	if result.Action != nil {
 		result.Action()
 	}
-	
+
 	return nil
 }
 

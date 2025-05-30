@@ -144,7 +144,7 @@ func (r *SearchResultItem) Refresh() {
 	} else {
 		r.background.FillColor = color.NRGBA{R: 18, G: 23, B: 32, A: 255} // not selected
 	}
-	
+
 	r.background.Refresh()
 	r.BaseWidget.Refresh()
 }
@@ -206,7 +206,6 @@ type SearchWindow struct {
 	selectedIndex int
 	results       []search.SearchResult
 	resultItems   []*SearchResultItem
-	hasFocus      bool
 	// show is used to track if the window is currently visible.
 	show bool
 }
@@ -299,7 +298,9 @@ func NewSearchWindow(app fyne.App, registry *search.Registry) *SearchWindow {
 	)
 
 	// Set the content
-	window.SetContent(mainContainer)
+	fyne.DoAndWait(func() {
+		window.SetContent(mainContainer)
+	})
 
 	// Focus the search input when the window opens
 	window.Canvas().Focus(searchInput)
@@ -332,10 +333,9 @@ func (sw *SearchWindow) selectResult(index int) {
 	sw.resultItems[index].Refresh()
 
 	// Refresh the results list container to ensure UI updates
-	sw.resultsList.Refresh()
-
-	// Ensure the selected item is visible in the scroll container
-	// (This would need custom scroll logic if we had implemented scroll visibility control)
+	fyne.Do(func() {
+		sw.resultsList.Refresh()
+	})
 }
 
 // selectNextResult selects the next result in the list
@@ -377,7 +377,9 @@ func (sw *SearchWindow) launchSelectedResult() {
 
 // Show displays the search window
 func (sw *SearchWindow) Show() {
-	sw.window.Show()
+	fyne.Do(func() {
+		sw.window.Show()
+	})
 }
 
 // Hide hides the search window
@@ -391,7 +393,10 @@ func (sw *SearchWindow) Close() {
 	if sw.timer != nil {
 		sw.timer.Stop()
 	}
-	sw.window.Close()
+
+	fyne.Do(func() {
+		sw.window.Close()
+	})
 }
 
 // performSearch executes the search and updates the UI
@@ -453,7 +458,9 @@ func (sw *SearchWindow) performSearch(query string) {
 					sw.resultItems = append(sw.resultItems, resultItem)
 					sw.resultsList.Add(resultItem)
 				}
-				sw.resultsList.Refresh()
+				fyne.Do(func() {
+					sw.resultsList.Refresh()
+				})
 				// Select the first result by default if we have results
 				if len(sw.resultItems) > 0 && sw.selectedIndex == 0 {
 					sw.selectResult(0)
@@ -482,8 +489,7 @@ func (sw *SearchWindow) ShowWithKeyboardFocus() {
 	sw.show = true
 	sw.Show()
 	sw.window.Canvas().Focus(sw.searchInput)
-	// Lets select all the text in the search input so that typing replaces it
-	sw.searchInput.SetText("")
+	// Fyne v2 does not support select-all; just focus the input and leave text as-is.
 }
 
 // ClearSearch clears the current search query and results

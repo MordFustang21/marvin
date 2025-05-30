@@ -30,3 +30,7 @@ func (e *SearchEntry) TypedKey(key *fyne.KeyEvent) {
 	}
 	e.Entry.TypedKey(key) // Default behavior for other keys
 }
+
+func (e *SearchEntry) SelectAll() {
+	// This is to programatically select all text in the entry.
+}

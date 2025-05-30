@@ -5,7 +5,9 @@ import (
 	"os/signal"
 	"syscall"
 
+	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
+	"fyne.io/fyne/v2/driver/desktop"
 	"github.com/MordFustang21/marvin-go/internal/search"
 	"github.com/MordFustang21/marvin-go/internal/search/providers/calculator"
 	"github.com/MordFustang21/marvin-go/internal/search/providers/spotlight"
@@ -17,6 +19,11 @@ import (
 func main() {
 	// Create a new Fyne application with custom ID
 	marvin := app.NewWithID("com.mordfustang.marvin")
+	// Set system tray so the app can run in the background.
+	if desk, ok := marvin.(desktop.App); ok {
+		m := fyne.NewMenu("marvin")
+		desk.SetSystemTrayMenu(m)
+	}
 
 	// Apply our custom GitHub Dark theme
 	marvin.Settings().SetTheme(theme.NewGitHubDarkTheme())
@@ -25,32 +32,37 @@ func main() {
 	registry := search.NewRegistry()
 	setupSearchProviders(registry)
 
-	// Create our search window
-	searchWindow := ui.NewSearchWindow(marvin, registry)
+	// Keep track of the last search window so we can close it if needed
+	var lastWindow *ui.SearchWindow
 
-	// Hide decorations as much as possible
-	w := searchWindow.GetWindow()
-	if w != nil {
-		w.SetPadded(false)
-		w.SetTitle("")
-	}
-
-	// TODO: Setup shortcuts for cmd+space to toggle the window.
+	// Setup shortcuts for cmd+space to toggle the window.
 	go func() {
 		hook.Register(hook.KeyDown, []string{"cmd", "space"}, func(e hook.Event) {
-			// Toggle the search window visibility
-			if searchWindow.IsVisible() {
-				searchWindow.Hide()
-			} else {
-				searchWindow.ShowWithKeyboardFocus()
+			// Close previous window if it's still open
+			if lastWindow != nil && lastWindow.IsVisible() {
+				lastWindow.Close()
+				lastWindow = nil
+				return
 			}
+
+			// Create and show a new window
+			searchWindow := ui.NewSearchWindow(marvin, registry)
+			lastWindow = searchWindow
+
+			// Hide decorations as much as possible
+			w := searchWindow.GetWindow()
+			if w != nil {
+				w.SetPadded(false)
+				w.SetTitle("")
+			}
+
+			searchWindow.ShowWithKeyboardFocus()
 		})
 
 		hook.Process(hook.Start())
 	}()
 
-	// Show the window by default since our hotkey isn't working yet
-	searchWindow.ShowWithKeyboardFocus()
+	// Do not show a window by default on startup
 
 	// Set up a signal handler for graceful shutdown
 	signalCh := make(chan os.Signal, 1)
@@ -58,7 +70,9 @@ func main() {
 
 	go func() {
 		<-signalCh
-		searchWindow.Close()
+		if lastWindow != nil {
+			lastWindow.Close()
+		}
 		os.Exit(0)
 	}()
 
