@@ -14,12 +14,15 @@ import (
 	"github.com/MordFustang21/marvin-go/internal/search/providers/web"
 	"github.com/MordFustang21/marvin-go/internal/theme"
 	"github.com/MordFustang21/marvin-go/internal/ui"
+	"github.com/MordFustang21/marvin-go/internal/ui/assets"
 	hook "github.com/robotn/gohook"
 )
 
 func main() {
 	// Create a new Fyne application with custom ID
 	marvin := app.NewWithID("com.mordfustang.marvin")
+	marvin.SetIcon(assets.MarvinIcon)
+	
 	// Set system tray so the app can run in the background.
 	if desk, ok := marvin.(desktop.App); ok {
 		m := fyne.NewMenu("marvin")
