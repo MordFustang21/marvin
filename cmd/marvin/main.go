@@ -23,7 +23,7 @@ func main() {
 	// Create a new Fyne application with custom ID
 	marvin := app.NewWithID("com.mordfustang.marvin")
 	marvin.SetIcon(assets.MarvinIcon)
-	
+
 	// Set system tray so the app can run in the background.
 	if desk, ok := marvin.(desktop.App); ok {
 		m := fyne.NewMenu("marvin")
@@ -38,30 +38,18 @@ func main() {
 	setupSearchProviders(registry)
 
 	// Keep track of the last search window so we can close it if needed
-	var lastWindow *ui.SearchWindow
+	searchWindow := ui.NewSearchWindow(marvin, registry)
 
 	// Setup shortcuts for cmd+space to toggle the window.
 	go func() {
 		hook.Register(hook.KeyDown, []string{"cmd", "space"}, func(e hook.Event) {
-			// Close previous window if it's still open
-			if lastWindow != nil && lastWindow.IsVisible() {
-				lastWindow.Close()
-				lastWindow = nil
-				return
-			}
-
-			// Create and show a new window
-			searchWindow := ui.NewSearchWindow(marvin, registry)
-			lastWindow = searchWindow
-
-			// Hide decorations as much as possible
-			w := searchWindow.GetWindow()
-			if w != nil {
-				w.SetPadded(false)
-				w.SetTitle("")
-			}
-
-			searchWindow.ShowWithKeyboardFocus()
+			fyne.Do(func() {
+				if searchWindow.IsVisible() {
+					searchWindow.Hide()
+				} else {
+					searchWindow.ShowWithKeyboardFocus()
+				}
+			})
 		})
 
 		hook.Process(hook.Start())
@@ -75,9 +63,6 @@ func main() {
 
 	go func() {
 		<-signalCh
-		if lastWindow != nil {
-			lastWindow.Close()
-		}
 		os.Exit(0)
 	}()
 
@@ -94,7 +79,7 @@ func setupSearchProviders(registry *search.Registry) {
 	// Register calculator provider with medium priority
 	calculatorProvider := calculator.NewProvider(2)
 	registry.RegisterProvider(calculatorProvider)
-	
+
 	// Register custom commands provider with medium-high priority
 	commandsProvider := commands.NewProvider(3, "")
 	registry.RegisterProvider(commandsProvider)

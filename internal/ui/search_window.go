@@ -224,7 +224,7 @@ func NewSearchWindow(app fyne.App, registry *search.Registry) *SearchWindow {
 
 	window.SetFixedSize(true)
 	window.Resize(fyne.NewSize(defaultWidth, defaultHeight))
-	window.CenterOnScreen()
+	// Window positioning is now handled in ShowWithKeyboardFocus
 
 	// Create a custom styled search input
 	searchInput := NewSearchEntry()
@@ -304,9 +304,7 @@ func NewSearchWindow(app fyne.App, registry *search.Registry) *SearchWindow {
 	)
 
 	// Set the content
-	fyne.DoAndWait(func() {
-		window.SetContent(mainContainer)
-	})
+	window.SetContent(mainContainer)
 
 	// Focus the search input when the window opens
 	window.Canvas().Focus(searchInput)
@@ -379,19 +377,6 @@ func (sw *SearchWindow) launchSelectedResult() {
 			sw.resultItems[sw.selectedIndex].OnTap()
 		}
 	}
-}
-
-// Show displays the search window
-func (sw *SearchWindow) Show() {
-	fyne.Do(func() {
-		sw.window.Show()
-	})
-}
-
-// Hide hides the search window
-func (sw *SearchWindow) Hide() {
-	sw.show = false
-	sw.window.Hide()
 }
 
 // Close closes the search window and cleans up resources
@@ -528,12 +513,38 @@ func (sw *SearchWindow) performSearch(query string) {
 	}()
 }
 
+// Show displays the search window
+func (sw *SearchWindow) Show() {
+	fyne.Do(func() {
+		sw.searchInput.SetPlaceHolder(util.GetRandomQuote())
+		
+		sw.window.Show()
+	})
+}
+
+// Hide hides the search window
+func (sw *SearchWindow) Hide() {
+	sw.show = false
+	fyne.Do(func() {
+		sw.window.Hide()
+	})
+}
+
 // ShowWithKeyboardFocus shows the search window and focuses the search input
+// It will attempt to position the window on the active screen (where the mouse cursor is)
 func (sw *SearchWindow) ShowWithKeyboardFocus() {
+	success := util.PositionWindowOnActiveScreen(sw.window)
+	if !success {
+		// Fall back to default centering if positioning fails
+		sw.window.CenterOnScreen()
+	}
+
 	sw.show = true
 	sw.Show()
+
+	// First focus the input field
 	sw.window.Canvas().Focus(sw.searchInput)
-	// Fyne v2 does not support select-all; just focus the input and leave text as-is.
+	sw.searchInput.Entry.TypedShortcut(&fyne.ShortcutSelectAll{})
 }
 
 // ClearSearch clears the current search query and results
