@@ -52,8 +52,17 @@ func (p *Provider) CanHandle(query string) bool {
 		return true
 	}
 
-	// Otherwise, we can handle any query for web search
-	return len(query) > 2 // Only handle queries with at least 3 characters
+	// Only handle queries that look like web searches
+	// Check for web search indicators like "search", "how to", etc.
+	webSearchIndicators := []string{"search", "how to", "what is", "where", "when", "who", "why", ".com", ".net", ".org"}
+	for _, indicator := range webSearchIndicators {
+		if strings.Contains(strings.ToLower(query), indicator) {
+			return true
+		}
+	}
+
+	// Otherwise, be more selective than the default providers
+	return false
 }
 
 // prepareURL formats the URL for opening, ensuring it has a protocol

@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"fmt"
 	"image/color"
 	"time"
 
@@ -208,6 +209,8 @@ type SearchWindow struct {
 	resultItems   []*SearchResultItem
 	// show is used to track if the window is currently visible.
 	show bool
+	// resultMap tracks results by their unique identifiers to prevent duplicates
+	resultMap     map[string]int
 }
 
 // NewSearchWindow creates a new search window
@@ -239,6 +242,7 @@ func NewSearchWindow(app fyne.App, registry *search.Registry) *SearchWindow {
 		resultsList: resultsList,
 		registry:    registry,
 		isFrameless: true,
+		resultMap:   make(map[string]int),
 	}
 
 	// Create trigger for search on input submission.
@@ -402,6 +406,7 @@ func (sw *SearchWindow) performSearch(query string) {
 	sw.resultsList.RemoveAll()
 	sw.results = nil
 	sw.resultItems = nil
+	sw.resultMap = make(map[string]int)
 	sw.selectedIndex = 0 // Start with first item selected
 
 	if query == "" {
@@ -416,7 +421,10 @@ func (sw *SearchWindow) performSearch(query string) {
 
 	// Track if we've shown any results yet
 	var anyResults bool
-
+	
+	// Track results by provider type for proper ordering
+	resultsByType := make(map[search.ProviderType][]int)
+	
 	go func() {
 		for {
 			select {
@@ -427,16 +435,26 @@ func (sw *SearchWindow) performSearch(query string) {
 				if len(results) == 0 {
 					continue
 				}
-				// Add results to the UI directly (assuming we're safe to do so)
-				// If this is the first batch, clear "No results" or error label
+				
+				// If this is the first set of results, ensure the list is clean
 				if !anyResults {
 					sw.resultsList.RemoveAll()
-					sw.results = nil
-					sw.resultItems = nil
+					// Don't reset resultItems completely, as we want to maintain ordered results
 					sw.selectedIndex = 0
 				}
 				anyResults = true
+				
+				// Process new results
+				currentItemsCount := len(sw.resultItems)
 				for _, result := range results {
+					// Create a unique key for this result to prevent duplicates
+					resultKey := fmt.Sprintf("%s:%s", string(result.Type), result.Path)
+					
+					// Skip if we've already added this result
+					if _, exists := sw.resultMap[resultKey]; exists {
+						continue
+					}
+					
 					resultItem := NewSearchResult(result)
 					// Truncate long descriptions
 					if len(resultItem.Description) > 120 {
@@ -450,18 +468,42 @@ func (sw *SearchWindow) performSearch(query string) {
 						}
 						sw.Hide() // Hide the window after selection
 					}
-					// Only select the first item if this is the first batch and first item
-					resultItem.IsSelected = (len(sw.resultItems) == 0)
+					
+					// Track the item by provider type
+					resultIndex := len(sw.resultItems)
+					resultsByType[result.Type] = append(resultsByType[result.Type], resultIndex)
+					
+					// Add result to our data structures and mark as added
 					sw.resultItems = append(sw.resultItems, resultItem)
-					sw.resultsList.Add(resultItem)
+					sw.resultMap[resultKey] = resultIndex
 				}
+				
+				// If we just got a first batch of results, build the UI
+				// This handles initial results
+				if currentItemsCount == 0 && len(sw.resultItems) > 0 {
+					// Add all items to UI in order
+					for _, item := range sw.resultItems {
+						sw.resultsList.Add(item)
+					}
+					// Select first item
+					if len(sw.resultItems) > 0 {
+						sw.resultItems[0].IsSelected = true
+						sw.selectResult(0)
+					}
+				} else if currentItemsCount > 0 {
+					// This handles subsequent results
+					// Clear and rebuild the list to maintain proper ordering
+					sw.resultsList.RemoveAll()
+					for _, item := range sw.resultItems {
+						sw.resultsList.Add(item)
+					}
+				}
+				
+				// Refresh the UI
 				fyne.Do(func() {
 					sw.resultsList.Refresh()
 				})
-				// Select the first result by default if we have results
-				if len(sw.resultItems) > 0 && sw.selectedIndex == 0 {
-					sw.selectResult(0)
-				}
+				
 			case err, ok := <-errCh:
 				if ok && err != nil {
 					sw.resultsList.RemoveAll()
