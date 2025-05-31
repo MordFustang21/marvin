@@ -278,11 +278,6 @@ func NewSearchWindow(app fyne.App, registry *search.Registry) *SearchWindow {
 		}
 	}
 
-	// Set window attributes after creation
-	window.SetCloseIntercept(func() {
-		window.Hide()
-	})
-
 	// Set up the search delay timer
 	searchWindow.timer = time.NewTimer(searchDelay)
 	go func() {
