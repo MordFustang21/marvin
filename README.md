@@ -2,7 +2,7 @@
 
 Marvin is a lightweight Spotlight alternative built with Go and Fyne.io. It provides quick search functionality for files, folders, and applications on your system using macOS Spotlight index.
 
-<img src="docs/screenshots/marvin-screenshot.png" alt="Marvin Screenshot" width="600"/>
+<img src="docs/screenshots/screenshot.png" alt="Marvin Screenshot" width="600"/>
 
 ## Features
 
@@ -72,4 +72,4 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE.md) file for details.
