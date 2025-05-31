@@ -22,12 +22,10 @@ import (
 func main() {
 	// Create a new Fyne application with custom ID
 	marvin := app.NewWithID("com.mordfustang.marvin")
-	marvin.SetIcon(assets.MarvinIcon)
 
 	// Set system tray so the app can run in the background.
 	if desk, ok := marvin.(desktop.App); ok {
-		m := fyne.NewMenu("marvin")
-		desk.SetSystemTrayMenu(m)
+		desk.SetSystemTrayIcon(assets.MarvinIcon)
 	}
 
 	// Apply our custom GitHub Dark theme
