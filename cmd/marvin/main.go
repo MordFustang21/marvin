@@ -1,12 +1,15 @@
 package main
 
 import (
+	"log/slog"
 	"os"
 	"os/signal"
+	"runtime"
 	"syscall"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
+	"fyne.io/fyne/v2/driver"
 	"fyne.io/fyne/v2/driver/desktop"
 	"github.com/MordFustang21/marvin-go/internal/search"
 	"github.com/MordFustang21/marvin-go/internal/search/providers/calculator"
@@ -16,7 +19,14 @@ import (
 	"github.com/MordFustang21/marvin-go/internal/theme"
 	"github.com/MordFustang21/marvin-go/internal/ui"
 	"github.com/MordFustang21/marvin-go/internal/ui/assets"
+	screenmanager "github.com/MordFustang21/marvin-go/internal/util/screen_manager"
 	hook "github.com/robotn/gohook"
+)
+
+var (
+	// goNSWindowPtr will store the pointer to the NSWindow as a Go uintptr.
+	// This is used to call C functions that require the NSWindow pointer.
+	goNSWindowPtr uintptr
 )
 
 func main() {
@@ -35,8 +45,34 @@ func main() {
 	registry := search.NewRegistry()
 	setupSearchProviders(registry)
 
-	// Keep track of the last search window so we can close it if needed
+	// Create the search window with the registry.
 	searchWindow := ui.NewSearchWindow(marvin, registry)
+
+	// Attempt to get the NSWindow pointer for the search window.
+	marvin.Lifecycle().SetOnEnteredForeground(func() {
+		nativeWin, ok := searchWindow.GetWindow().(driver.NativeWindow)
+		if !ok {
+			slog.Debug("Window does not support driver.NativeWindow")
+			return
+		}
+
+		// RunNative must be called on the main Fyne goroutine
+		nativeWin.RunNative(func(ctx any) { // ctx is platform specific
+			if runtime.GOOS == "darwin" {
+				macCtx, ok := ctx.(driver.MacWindowContext)
+				if !ok {
+					slog.Debug("Failed to get MacWindowContext from RunNative callback")
+					return
+				}
+				// macCtx.NSWindow is unsafe.Pointer
+				// Store it as Go's uintptr
+				goNSWindowPtr = uintptr(macCtx.NSWindow)
+				slog.Debug("Got NSWindow pointer", slog.Any("NSWindowPtr", goNSWindowPtr))
+			} else {
+				slog.Debug("Screen management is only supported on macOS")
+			}
+		})
+	})
 
 	// Setup shortcuts for cmd+space to toggle the window.
 	go func() {
@@ -46,6 +82,7 @@ func main() {
 					searchWindow.Hide()
 				} else {
 					searchWindow.ShowWithKeyboardFocus()
+					screenmanager.GoMoveToScreenWithMouse(goNSWindowPtr)
 				}
 			})
 		})
@@ -53,19 +90,18 @@ func main() {
 		hook.Process(hook.Start())
 	}()
 
-	// Do not show a window by default on startup
-
 	// Set up a signal handler for graceful shutdown
 	signalCh := make(chan os.Signal, 1)
 	signal.Notify(signalCh, syscall.SIGINT, syscall.SIGTERM)
 
 	go func() {
 		<-signalCh
+		marvin.Quit()
 		os.Exit(0)
 	}()
 
 	// Run the application
-	marvin.Run()
+	searchWindow.GetWindow().ShowAndRun()
 }
 
 // setupSearchProviders registers all search providers with the registry

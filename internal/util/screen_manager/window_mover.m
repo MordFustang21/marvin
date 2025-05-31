@@ -29,7 +29,7 @@ static void centerWindowOnScreen(NSWindow* window, NSScreen* targetScreen) {
         newY = screenVisibleFrame.origin.y + screenVisibleFrame.size.height - windowFrame.size.height;
     }
     
-    fprintf(stdout, "ObjC: Moving window to X: %.0f, Y: %.0f on screen '%@'\n", newX, newY, [targetScreen localizedName]);
+    fprintf(stdout, "ObjC: Moving window to X: %.0f, Y: %.0f on screen '%p'\n", newX, newY, [targetScreen localizedName]);
     [window setFrameOrigin:NSMakePoint(newX, newY)];
     // Optional: Make the window key and front
     // [window makeKeyAndOrderFront:nil];
@@ -79,7 +79,7 @@ void MoveToScreenWithMouse(uintptr_t nsWindowPtr) {
         }
         
         if (targetScreen) {
-            fprintf(stdout, "ObjC: Request to move to Screen with Mouse (found: '%@')\n", [targetScreen localizedName]);
+            fprintf(stdout, "ObjC: Request to move to Screen with Mouse (found: '%p')\n", [targetScreen localizedName]);
             centerWindowOnScreen(window, targetScreen);
         } else {
             fprintf(stderr, "ObjC: MoveToScreenWithMouse: Could not determine target screen even after fallback.\n");
@@ -104,7 +104,7 @@ void MoveToScreenAtIndex(uintptr_t nsWindowPtr, int screenIndex) {
 
         NSScreen* targetScreen = [screens objectAtIndex:screenIndex];
         if (targetScreen) {
-            fprintf(stdout, "ObjC: Request to move to Screen at Index %d ('%@')\n", screenIndex, [targetScreen localizedName]);
+            fprintf(stdout, "ObjC: Request to move to Screen at Index %d ('%p')\n", screenIndex, [targetScreen localizedName]);
             centerWindowOnScreen(window, targetScreen);
         } else {
             // Should not happen if index is valid

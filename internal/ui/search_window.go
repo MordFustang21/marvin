@@ -541,12 +541,6 @@ func (sw *SearchWindow) Hide() {
 // ShowWithKeyboardFocus shows the search window and focuses the search input
 // It will attempt to position the window on the active screen (where the mouse cursor is)
 func (sw *SearchWindow) ShowWithKeyboardFocus() {
-	success := util.PositionWindowOnActiveScreen(sw.window)
-	if !success {
-		// Fall back to default centering if positioning fails
-		sw.window.CenterOnScreen()
-	}
-
 	sw.show = true
 	sw.Show()
 
