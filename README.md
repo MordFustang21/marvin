@@ -14,7 +14,7 @@ Marvin is a lightweight Spotlight alternative built with Go and Fyne.io. It prov
 ## Requirements
 
 - Go 1.18 or higher
-- macOS (due to dependency on macOS Spotlight)
+- macOS (due to dependency on macOS Spotlight and current window management)
 - Fyne.io dependencies (automatically installed via Go modules)
 
 ## Installation
@@ -51,11 +51,15 @@ Currently, Marvin has minimal configuration options. Future versions will includ
 Marvin is built using the following components:
 
 - **UI Layer**: Uses Fyne.io for cross-platform GUI however only macOS is supported at the moment.
-- **Search Layer**: Is a registry of various providers that can provide various search/autocomplete results.
+- **Search Layer**: Is a registry of various providers that can provide various search/autocomplete results. [Detailed documentation](internal/search/README.md).
 
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
+
+### Creating New Search Providers
+
+Marvin's search functionality is extensible through search providers. See the [search architecture documentation](internal/search/README.md) for details on implementing custom providers.
 
 ## TODO
 - [] Improve performance and responsiveness.
