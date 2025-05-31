@@ -19,6 +19,8 @@ import (
 type Provider struct {
 	priority   int
 	maxResults int
+	// cachedApps stores pre-indexed applications for quick access
+	cachedApps map[string][]search.SearchResult // maps lowercase name -> results
 }
 
 // NewProvider creates a new Spotlight provider
@@ -27,10 +29,16 @@ func NewProvider(priority, maxResults int) *Provider {
 		maxResults = 20 // Default max results if invalid value provided
 	}
 
-	return &Provider{
+	provider := &Provider{
 		priority:   priority,
 		maxResults: maxResults,
+		cachedApps: make(map[string][]search.SearchResult),
 	}
+
+	// Cache applications in the background
+	go provider.cacheApplications()
+
+	return provider
 }
 
 // Name returns the provider's name
@@ -59,6 +67,58 @@ func (p *Provider) Search(query string) ([]search.SearchResult, error) {
 		return []search.SearchResult{}, nil
 	}
 
+	// Normalize query for case-insensitive matching
+	queryLower := strings.ToLower(query)
+
+	// First check the cached applications and return any matches immediately
+	cachedResults := p.searchCachedApps(queryLower)
+	
+	// If we have cached results, return them immediately
+	if len(cachedResults) > 0 {
+		// Return the cached results immediately
+		return cachedResults, nil
+	}
+	
+	// If no cached results, perform synchronous search
+	return p.searchSpotlight(queryLower)
+}
+
+// searchCachedApps returns applications from the cache that match the query
+func (p *Provider) searchCachedApps(queryLower string) []search.SearchResult {
+	results := []search.SearchResult{}
+	
+	// Check for exact matches in cache first
+	if cachedResults, ok := p.cachedApps[queryLower]; ok {
+		return cachedResults
+	}
+	
+	// Otherwise, do prefix matching on keys
+	for appName, cachedResults := range p.cachedApps {
+		if strings.HasPrefix(appName, queryLower) {
+			results = append(results, cachedResults...)
+			if len(results) >= p.maxResults {
+				return results[:p.maxResults]
+			}
+		}
+	}
+	
+	// If we still don't have enough, try substring matching
+	if len(results) < p.maxResults {
+		for appName, cachedResults := range p.cachedApps {
+			if strings.Contains(appName, queryLower) && !strings.HasPrefix(appName, queryLower) {
+				results = append(results, cachedResults...)
+				if len(results) >= p.maxResults {
+					return results[:p.maxResults]
+				}
+			}
+		}
+	}
+	
+	return results
+}
+
+// searchSpotlight performs the actual spotlight search
+func (p *Provider) searchSpotlight(query string) ([]search.SearchResult, error) {
 	// Format the mdfind query
 	// We'll search for applications, files, folders that match the query
 	mdFindQuery := fmt.Sprintf("kind:app %s", query)
@@ -87,90 +147,104 @@ func (p *Provider) Search(query string) ([]search.SearchResult, error) {
 			break
 		}
 
-		// Get file metadata
-		kind, iconResource := p.determineKindAndIcon(path)
-
-		// Create closure for the item's path for action handling
-		pathCopy := path // Copy to avoid closure capturing loop variable
-
-		var title, description string
-
-		// Try to get metadata using mdls first as it's faster
-		mdlsInfo := p.extractMdlsMetadata(path)
-
-		if kind == "application" && strings.HasSuffix(path, ".app") {
-			// Extract app bundle information for better display
-			appInfo := p.extractAppBundleInfo(path)
-
-			// Use the bundle display name if available, otherwise fallback to filename
-			if appInfo.DisplayName != "" {
-				title = appInfo.DisplayName
-			} else {
-				title = p.extractNameFromPath(path)
-			}
-
-			// Use the bundle description if available
-			if appInfo.Description != "" {
-				description = appInfo.Description
-			} else if appInfo.ShortVersion != "" {
-				description = fmt.Sprintf("Version %s", appInfo.ShortVersion)
-			} else {
-				// Try to get more metadata using mdls as fallback
-				mdlsInfo := p.extractMdlsMetadata(path)
-				if mdlsInfo.KindDisplayName != "" {
-					description = mdlsInfo.KindDisplayName
-				} else if mdlsInfo.Version != "" {
-					description = fmt.Sprintf("Version %s", mdlsInfo.Version)
-				} else if mdlsInfo.Description != "" {
-					description = mdlsInfo.Description
-				} else if mdlsInfo.Developer != "" {
-					description = "By " + mdlsInfo.Developer
-				} else {
-					description = "Application"
-				}
-			}
-		} else {
-			// Use display name from mdls if available, otherwise use filename
-			if mdlsInfo.DisplayName != "" {
-				title = mdlsInfo.DisplayName
-			} else {
-				title = p.extractNameFromPath(path)
-			}
-
-			// Use the most informative description available
-			if mdlsInfo.Description != "" {
-				description = mdlsInfo.Description
-			} else if mdlsInfo.KindDisplayName != "" {
-				description = mdlsInfo.KindDisplayName
-			} else {
-				// Get parent directory for files
-				parentDir := p.getParentDirectory(pathCopy)
-				if parentDir != "" {
-					description = "in " + parentDir
-				} else {
-					description = pathCopy
-				}
-			}
+		// Skip if this is not an application (we're only looking for .app files)
+		if !strings.HasSuffix(path, ".app") {
+			continue
 		}
 
-		results = append(results, search.SearchResult{
-			Title:       title,
-			Description: description,
-			Path:        path,
-			Icon:        iconResource,
-			Type:        search.TypeFile,
-			Action: func() {
-				err := OpenFile(pathCopy)
-				if err != nil {
-					log.Println("error opening")
-				}
-			},
-		})
+		// Create a search result from the path
+		result, err := p.createSearchResultFromPath(path)
+		if err != nil {
+			continue
+		}
 
+		results = append(results, result)
 		count++
 	}
 
 	return results, nil
+}
+
+// createSearchResultFromPath creates a SearchResult from a file path
+func (p *Provider) createSearchResultFromPath(path string) (search.SearchResult, error) {
+	// Get file metadata
+	kind, iconResource := p.determineKindAndIcon(path)
+
+	// Create closure for the item's path for action handling
+	pathCopy := path // Copy to avoid closure capturing loop variable
+
+	var title, description string
+
+	// Try to get metadata using mdls first as it's faster
+	mdlsInfo := p.extractMdlsMetadata(path)
+
+	if kind == "application" && strings.HasSuffix(path, ".app") {
+		// Extract app bundle information for better display
+		appInfo := p.extractAppBundleInfo(path)
+
+		// Use the bundle display name if available, otherwise fallback to filename
+		if appInfo.DisplayName != "" {
+			title = appInfo.DisplayName
+		} else {
+			title = p.extractNameFromPath(path)
+		}
+
+		// Use the bundle description if available
+		if appInfo.Description != "" {
+			description = appInfo.Description
+		} else if appInfo.ShortVersion != "" {
+			description = fmt.Sprintf("Version %s", appInfo.ShortVersion)
+		} else {
+			// Try to get more metadata using mdls as fallback
+			if mdlsInfo.KindDisplayName != "" {
+				description = mdlsInfo.KindDisplayName
+			} else if mdlsInfo.Version != "" {
+				description = fmt.Sprintf("Version %s", mdlsInfo.Version)
+			} else if mdlsInfo.Description != "" {
+				description = mdlsInfo.Description
+			} else if mdlsInfo.Developer != "" {
+				description = "By " + mdlsInfo.Developer
+			} else {
+				description = "Application"
+			}
+		}
+	} else {
+		// Use display name from mdls if available, otherwise use filename
+		if mdlsInfo.DisplayName != "" {
+			title = mdlsInfo.DisplayName
+		} else {
+			title = p.extractNameFromPath(path)
+		}
+
+		// Use the most informative description available
+		if mdlsInfo.Description != "" {
+			description = mdlsInfo.Description
+		} else if mdlsInfo.KindDisplayName != "" {
+			description = mdlsInfo.KindDisplayName
+		} else {
+			// Get parent directory for files
+			parentDir := p.getParentDirectory(pathCopy)
+			if parentDir != "" {
+				description = "in " + parentDir
+			} else {
+				description = pathCopy
+			}
+		}
+	}
+
+	return search.SearchResult{
+		Title:       title,
+		Description: description,
+		Path:        path,
+		Icon:        iconResource,
+		Type:        search.TypeFile,
+		Action: func() {
+			err := OpenFile(pathCopy)
+			if err != nil {
+				log.Println("error opening")
+			}
+		},
+	}, nil
 }
 
 // extractNameFromPath extracts the file or folder name from a path
@@ -360,4 +434,75 @@ func (p *Provider) getPlistValue(plistPath, key string) string {
 func OpenFile(path string) error {
 	cmd := exec.Command("open", path)
 	return cmd.Run()
+}
+
+// cacheApplications caches applications from /Applications and /System/Applications
+func (p *Provider) cacheApplications() {
+	// Path to the Applications directory
+	standardApps := "/Applications"
+	systemApps := "/System/Applications"
+	
+	// Cache applications from both directories
+	p.cacheAppsFromDirectory(standardApps)
+	p.cacheAppsFromDirectory(systemApps)
+	
+	log.Printf("Application cache initialized with %d entries", len(p.cachedApps))
+}
+
+// cacheAppsFromDirectory scans a directory for .app files and caches them
+func (p *Provider) cacheAppsFromDirectory(dirPath string) {
+	// Find all .app files in the directory
+	cmd := exec.Command("find", dirPath, "-name", "*.app", "-maxdepth", "1")
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	
+	err := cmd.Run()
+	if err != nil {
+		log.Printf("Error finding applications in %s: %v", dirPath, err)
+		return
+	}
+	
+	// Process the applications
+	appPaths := strings.Split(strings.TrimSpace(out.String()), "\n")
+	for _, path := range appPaths {
+		if path == "" {
+			continue
+		}
+		
+		// Create a search result for this application
+		result, err := p.createSearchResultFromPath(path)
+		if err != nil {
+			continue
+		}
+		
+		// Create searchable index keys: 
+		// - Full app name
+		// - Words in app name
+		keys := []string{
+			strings.ToLower(result.Title),
+		}
+		
+		// Add individual words as keys
+		words := strings.Fields(strings.ToLower(result.Title))
+		for _, word := range words {
+			if len(word) > 2 && !contains(keys, word) { // Only add words longer than 2 chars
+				keys = append(keys, word)
+			}
+		}
+		
+		// Add to cache using all keys
+		for _, key := range keys {
+			p.cachedApps[key] = append(p.cachedApps[key], result)
+		}
+	}
+}
+
+// contains checks if a string is in a slice
+func contains(slice []string, str string) bool {
+	for _, s := range slice {
+		if s == str {
+			return true
+		}
+	}
+	return false
 }

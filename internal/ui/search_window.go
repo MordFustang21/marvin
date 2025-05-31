@@ -221,7 +221,7 @@ func NewSearchWindow(app fyne.App, registry *search.Registry) *SearchWindow {
 	} else {
 		window = app.NewWindow("Marvin")
 	}
-	
+
 	// Set show menu item with shortcut to stop alert sound when showing the window.
 	showMenuItem := fyne.NewMenuItem("Show Marvin", func() {})
 	showMenuItem.Shortcut = &util.ShortcutLauncher{}
@@ -525,7 +525,7 @@ func (sw *SearchWindow) performSearch(query string) {
 func (sw *SearchWindow) Show() {
 	fyne.Do(func() {
 		sw.searchInput.SetPlaceHolder(util.GetRandomQuote())
-		
+
 		sw.window.Show()
 	})
 }
