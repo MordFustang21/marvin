@@ -14,6 +14,7 @@ import (
 	"github.com/MordFustang21/marvin-go/internal/search"
 	"github.com/MordFustang21/marvin-go/internal/search/providers/calculator"
 	"github.com/MordFustang21/marvin-go/internal/search/providers/commands"
+	encodedecode "github.com/MordFustang21/marvin-go/internal/search/providers/encode_decode"
 	"github.com/MordFustang21/marvin-go/internal/search/providers/spotlight"
 	"github.com/MordFustang21/marvin-go/internal/search/providers/web"
 	"github.com/MordFustang21/marvin-go/internal/theme"
@@ -121,4 +122,12 @@ func setupSearchProviders(registry *search.Registry) {
 	// Register web provider with lowest priority
 	webProvider := web.NewProvider(10) // Much lower priority than other providers
 	registry.RegisterProvider(webProvider)
+
+	// Register encode/decode provider
+	encodeDecodeProvider, err := encodedecode.NewProvider(5)
+	if err != nil {
+		slog.Error("Failed to create encode/decode provider", slog.Any("error", err))
+	} else {
+		registry.RegisterProvider(encodeDecodeProvider)
+	}
 }

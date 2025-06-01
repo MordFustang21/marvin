@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"fyne.io/fyne/v2"
@@ -436,15 +437,18 @@ func OpenFile(path string) error {
 	return cmd.Run()
 }
 
+var applicationDirs = []string{
+	"/Applications",
+	"/Applications/Utilities",
+	"/System/Applications",
+	"/System/Applications/Utilities",
+}
+
 // cacheApplications caches applications from /Applications and /System/Applications
 func (p *Provider) cacheApplications() {
-	// Path to the Applications directory
-	standardApps := "/Applications"
-	systemApps := "/System/Applications"
-
-	// Cache applications from both directories
-	p.cacheAppsFromDirectory(standardApps)
-	p.cacheAppsFromDirectory(systemApps)
+	for _, dir := range applicationDirs {
+		p.cacheAppsFromDirectory(dir)
+	}
 
 	slog.Debug("Application cache initialized", slog.Int("numEntries", len(p.cachedApps)))
 }
@@ -463,8 +467,8 @@ func (p *Provider) cacheAppsFromDirectory(dirPath string) {
 	}
 
 	// Process the applications
-	appPaths := strings.Split(strings.TrimSpace(out.String()), "\n")
-	for _, path := range appPaths {
+	appPaths := strings.SplitSeq(strings.TrimSpace(out.String()), "\n")
+	for path := range appPaths {
 		if path == "" {
 			continue
 		}
@@ -485,7 +489,7 @@ func (p *Provider) cacheAppsFromDirectory(dirPath string) {
 		// Add individual words as keys
 		words := strings.Fields(strings.ToLower(result.Title))
 		for _, word := range words {
-			if len(word) > 2 && !contains(keys, word) { // Only add words longer than 2 chars
+			if len(word) > 2 && !slices.Contains(keys, word) { // Only add words longer than 2 chars
 				keys = append(keys, word)
 			}
 		}
@@ -495,14 +499,4 @@ func (p *Provider) cacheAppsFromDirectory(dirPath string) {
 			p.cachedApps[key] = append(p.cachedApps[key], result)
 		}
 	}
-}
-
-// contains checks if a string is in a slice
-func contains(slice []string, str string) bool {
-	for _, s := range slice {
-		if s == str {
-			return true
-		}
-	}
-	return false
 }

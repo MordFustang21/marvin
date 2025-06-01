@@ -14,6 +14,7 @@ import (
 	"fyne.io/fyne/v2/storage"
 	"fyne.io/fyne/v2/theme"
 	"github.com/MordFustang21/marvin-go/internal/search"
+	"github.com/lithammer/fuzzysearch/fuzzy"
 )
 
 // CommandActionType defines the type of action a command can perform
@@ -130,7 +131,7 @@ func (p *Provider) Search(query string) ([]search.SearchResult, error) {
 
 	// Find matching commands
 	for trigger, cmds := range p.commands {
-		if strings.HasPrefix(trigger, query) || strings.HasPrefix(query, trigger) {
+		if fuzzy.Match(query, trigger) || fuzzy.Match(trigger, query) {
 			for _, cmd := range cmds {
 				// Create a copy to use in the closure
 				command := cmd

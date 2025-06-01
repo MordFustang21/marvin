@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"image"
 	"image/png"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -35,7 +36,7 @@ func GetAppIcon(appPath string) fyne.Resource {
 	// Try to extract the icon using macOS-specific methods
 	iconResource, err := extractMacOSAppIcon(appPath)
 	if err != nil || iconResource == nil {
-		fmt.Printf("Failed to extract icon for %s: %v\n", appPath, err)
+		slog.Error("failed to extract icon", slog.String("path", appPath), slog.Any("error", err))
 		// Fallback to default icon
 		return theme.ComputerIcon()
 	}
@@ -60,6 +61,7 @@ func extractMacOSAppIcon(appPath string) (fyne.Resource, error) {
 		cmd := exec.Command("defaults", "read", infoPath, "CFBundleIconFile")
 		output, err := cmd.Output()
 		if err != nil {
+			slog.Error("failed to read icon file from Info.plist", slog.String("path", infoPath), slog.Any("error", err))
 			return nil, fmt.Errorf("failed to read icon info: %w", err)
 		}
 
