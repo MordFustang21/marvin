@@ -13,9 +13,9 @@ import (
 
 // Provider is a search provider that handles web searches and direct URL opening
 type Provider struct {
-	priority    int
-	searchURL   string // URL template for searches (with %s for query)
-	directRegex *regexp.Regexp
+	priority  int
+	searchURL string // URL template for searches (with %s for query)
+	urlRegex  *regexp.Regexp
 }
 
 // NewProvider creates a new web provider
@@ -23,11 +23,15 @@ func NewProvider(priority int) *Provider {
 	// Default to Google search
 	urlRegex := regexp.MustCompile(`^(https?:\/\/)?([\w\-]+(\.[\w\-]+)+)(\/[^\s]*)?$`)
 
-	return &Provider{
-		priority:    priority,
-		searchURL:   "https://www.google.com/search?q=%s",
-		directRegex: urlRegex,
+	p := &Provider{
+		priority: priority,
+		urlRegex: urlRegex,
 	}
+
+	// Default search URL is Google
+	p.SetSearchEngine(SearchEngineGoogle)
+
+	return p
 }
 
 // Name returns the provider's name
@@ -47,28 +51,14 @@ func (p *Provider) Priority() int {
 
 // CanHandle returns whether the provider can handle the given query
 func (p *Provider) CanHandle(query string) bool {
-	// Check if it's a URL (containing domain)
-	if p.directRegex.MatchString(query) {
-		return true
-	}
-
-	// Only handle queries that look like web searches
-	// Check for web search indicators like "search", "how to", etc.
-	webSearchIndicators := []string{"search", "how to", "what is", "where", "when", "who", "why", ".com", ".net", ".org"}
-	for _, indicator := range webSearchIndicators {
-		if strings.Contains(strings.ToLower(query), indicator) {
-			return true
-		}
-	}
-
-	// Otherwise, be more selective than the default providers
-	return false
+	// Always show an option to search the web.
+	return true
 }
 
 // prepareURL formats the URL for opening, ensuring it has a protocol
 func (p *Provider) prepareURL(query string) string {
 	// Check if it's already a URL
-	if p.directRegex.MatchString(query) {
+	if p.urlRegex.MatchString(query) {
 		// Make sure it has the http:// prefix
 		if !strings.HasPrefix(query, "http://") && !strings.HasPrefix(query, "https://") {
 			return "https://" + query
@@ -89,7 +79,7 @@ func (p *Provider) Search(query string) ([]search.SearchResult, error) {
 	results := []search.SearchResult{}
 
 	// First, check if this is directly a URL
-	if p.directRegex.MatchString(query) {
+	if p.urlRegex.MatchString(query) {
 		urlToOpen := p.prepareURL(query)
 		results = append(results, search.SearchResult{
 			Title:       "Open URL: " + query,
@@ -139,16 +129,26 @@ func (p *Provider) Execute(result search.SearchResult) error {
 	return nil
 }
 
+// SearchEngine represents the type of search engine used.
+type SearchEngine string
+
+const (
+	SearchEngineGoogle     SearchEngine = "google"
+	SearchEngineBing       SearchEngine = "bing"
+	SearchEngineDuckDuckGo SearchEngine = "duckduckgo"
+	SearchEngineYahoo      SearchEngine = "yahoo"
+)
+
 // SetSearchEngine allows changing the search engine used
-func (p *Provider) SetSearchEngine(name string) {
-	switch strings.ToLower(name) {
-	case "google":
+func (p *Provider) SetSearchEngine(searchEngine SearchEngine) {
+	switch searchEngine {
+	case SearchEngineGoogle:
 		p.searchURL = "https://www.google.com/search?q=%s"
-	case "bing":
+	case SearchEngineBing:
 		p.searchURL = "https://www.bing.com/search?q=%s"
-	case "duckduckgo", "ddg":
+	case SearchEngineDuckDuckGo:
 		p.searchURL = "https://duckduckgo.com/?q=%s"
-	case "yahoo":
+	case SearchEngineYahoo:
 		p.searchURL = "https://search.yahoo.com/search?p=%s"
 	default:
 		// If unrecognized, stick with the default

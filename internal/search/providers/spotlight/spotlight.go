@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -72,13 +72,13 @@ func (p *Provider) Search(query string) ([]search.SearchResult, error) {
 
 	// First check the cached applications and return any matches immediately
 	cachedResults := p.searchCachedApps(queryLower)
-	
+
 	// If we have cached results, return them immediately
 	if len(cachedResults) > 0 {
 		// Return the cached results immediately
 		return cachedResults, nil
 	}
-	
+
 	// If no cached results, perform synchronous search
 	return p.searchSpotlight(queryLower)
 }
@@ -86,12 +86,12 @@ func (p *Provider) Search(query string) ([]search.SearchResult, error) {
 // searchCachedApps returns applications from the cache that match the query
 func (p *Provider) searchCachedApps(queryLower string) []search.SearchResult {
 	results := []search.SearchResult{}
-	
+
 	// Check for exact matches in cache first
 	if cachedResults, ok := p.cachedApps[queryLower]; ok {
 		return cachedResults
 	}
-	
+
 	// Otherwise, do prefix matching on keys
 	for appName, cachedResults := range p.cachedApps {
 		if strings.HasPrefix(appName, queryLower) {
@@ -101,7 +101,7 @@ func (p *Provider) searchCachedApps(queryLower string) []search.SearchResult {
 			}
 		}
 	}
-	
+
 	// If we still don't have enough, try substring matching
 	if len(results) < p.maxResults {
 		for appName, cachedResults := range p.cachedApps {
@@ -113,7 +113,7 @@ func (p *Provider) searchCachedApps(queryLower string) []search.SearchResult {
 			}
 		}
 	}
-	
+
 	return results
 }
 
@@ -241,7 +241,7 @@ func (p *Provider) createSearchResultFromPath(path string) (search.SearchResult,
 		Action: func() {
 			err := OpenFile(pathCopy)
 			if err != nil {
-				log.Println("error opening")
+				slog.Error("Failed to open file", slog.String("path", pathCopy), slog.Any("error", err))
 			}
 		},
 	}, nil
@@ -377,7 +377,7 @@ func (p *Provider) extractMdlsMetadata(path string) MdlsMetadata {
 	}
 
 	// Parse JSON response
-	var result map[string]interface{}
+	var result map[string]any
 	if err := json.Unmarshal(out.Bytes(), &result); err != nil {
 		return info
 	}
@@ -441,12 +441,12 @@ func (p *Provider) cacheApplications() {
 	// Path to the Applications directory
 	standardApps := "/Applications"
 	systemApps := "/System/Applications"
-	
+
 	// Cache applications from both directories
 	p.cacheAppsFromDirectory(standardApps)
 	p.cacheAppsFromDirectory(systemApps)
-	
-	log.Printf("Application cache initialized with %d entries", len(p.cachedApps))
+
+	slog.Debug("Application cache initialized", slog.Int("numEntries", len(p.cachedApps)))
 }
 
 // cacheAppsFromDirectory scans a directory for .app files and caches them
@@ -455,33 +455,33 @@ func (p *Provider) cacheAppsFromDirectory(dirPath string) {
 	cmd := exec.Command("find", dirPath, "-name", "*.app", "-maxdepth", "1")
 	var out bytes.Buffer
 	cmd.Stdout = &out
-	
+
 	err := cmd.Run()
 	if err != nil {
-		log.Printf("Error finding applications in %s: %v", dirPath, err)
+		slog.Error("Error finding applications", slog.String("directory", dirPath), slog.Any("error", err))
 		return
 	}
-	
+
 	// Process the applications
 	appPaths := strings.Split(strings.TrimSpace(out.String()), "\n")
 	for _, path := range appPaths {
 		if path == "" {
 			continue
 		}
-		
+
 		// Create a search result for this application
 		result, err := p.createSearchResultFromPath(path)
 		if err != nil {
 			continue
 		}
-		
-		// Create searchable index keys: 
+
+		// Create searchable index keys:
 		// - Full app name
 		// - Words in app name
 		keys := []string{
 			strings.ToLower(result.Title),
 		}
-		
+
 		// Add individual words as keys
 		words := strings.Fields(strings.ToLower(result.Title))
 		for _, word := range words {
@@ -489,7 +489,7 @@ func (p *Provider) cacheAppsFromDirectory(dirPath string) {
 				keys = append(keys, word)
 			}
 		}
-		
+
 		// Add to cache using all keys
 		for _, key := range keys {
 			p.cachedApps[key] = append(p.cachedApps[key], result)

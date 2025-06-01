@@ -367,7 +367,7 @@ func (sw *SearchWindow) ShowWithKeyboardFocus() {
 
 	// First focus the input field
 	sw.window.Canvas().Focus(sw.searchInput)
-	sw.searchInput.Entry.TypedShortcut(&fyne.ShortcutSelectAll{})
+	sw.searchInput.SelectAll()
 }
 
 // ClearSearch clears the current search query and results

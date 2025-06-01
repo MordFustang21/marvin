@@ -33,4 +33,5 @@ func (e *SearchEntry) TypedKey(key *fyne.KeyEvent) {
 
 func (e *SearchEntry) SelectAll() {
 	// This is to programatically select all text in the entry.
+	e.TypedShortcut(&fyne.ShortcutSelectAll{})
 }

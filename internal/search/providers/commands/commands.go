@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/fs"
-	"log"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -69,7 +69,7 @@ func NewProvider(priority int, configDir string) *Provider {
 		// Default to ~/.config/marvin/commands/
 		homeDir, err := os.UserHomeDir()
 		if err != nil {
-			log.Printf("Failed to get home directory: %v", err)
+			slog.Error("Failed to get home directory", slog.Any("error", err))
 			homeDir = "."
 		}
 
@@ -78,7 +78,7 @@ func NewProvider(priority int, configDir string) *Provider {
 
 	// Create directory if it doesn't exist
 	if err := os.MkdirAll(configDir, 0755); err != nil {
-		log.Printf("Failed to create commands directory: %v", err)
+		slog.Error("Failed to create commands directory", slog.String("path", configDir), slog.Any("error", err))
 	}
 
 	provider := &Provider{
@@ -184,7 +184,7 @@ func (p *Provider) loadCommands() {
 
 			// Load the command provider from the file
 			if err := p.loadCommandProvider(path); err != nil {
-				log.Printf("Error loading commands from %s: %v", path, err)
+				slog.Error("failed to load commands", slog.String("path", path))
 			}
 		}
 
@@ -192,11 +192,10 @@ func (p *Provider) loadCommands() {
 	})
 
 	if err != nil {
-		log.Printf("Error walking commands directory: %v", err)
+		slog.Error("failed to walk commands directory", slog.String("path", p.configDir), slog.Any("error", err))
 	}
 
-	log.Printf("Loaded %d command providers with %d commands",
-		len(p.commandProviders), p.countTotalCommands())
+	slog.Debug("Loaded command providers", slog.Int("numProviders", len(p.commandProviders)), slog.Int("commands", p.countTotalCommands()))
 }
 
 // countTotalCommands returns the total number of commands across all providers
@@ -260,7 +259,7 @@ func (p *Provider) executeCommand(cmd Command) {
 		}
 		p.openApplication(path)
 	default:
-		log.Printf("Unknown command action type: %s", cmd.Action.Type)
+		slog.Error("unknown command action type", slog.String("type", string(cmd.Action.Type)))
 	}
 }
 
@@ -272,14 +271,14 @@ func (p *Provider) executeShellCommand(command string) {
 	// Run the command without waiting for output
 	// For commands that might show UI or take a while
 	if err := cmd.Start(); err != nil {
-		log.Printf("Failed to start command: %v", err)
+		slog.Error("failed to start shell command", slog.String("command", command), slog.Any("error", err))
 		return
 	}
 
 	// Optionally wait for completion in a goroutine
 	go func() {
 		if err := cmd.Wait(); err != nil {
-			log.Printf("Command failed: %v", err)
+			slog.Error("shell command failed", slog.String("command", command), slog.Any("error", err))
 		}
 	}()
 }
@@ -288,7 +287,7 @@ func (p *Provider) executeShellCommand(command string) {
 func (p *Provider) openURL(url string) {
 	cmd := exec.Command("open", url)
 	if err := cmd.Run(); err != nil {
-		log.Printf("Failed to open URL: %v", err)
+		slog.Error("failed to open URL", slog.String("url", url), slog.Any("error", err))
 	}
 }
 
@@ -296,7 +295,7 @@ func (p *Provider) openURL(url string) {
 func (p *Provider) openApplication(path string) {
 	cmd := exec.Command("open", path)
 	if err := cmd.Run(); err != nil {
-		log.Printf("Failed to open application: %v", err)
+		slog.Error("failed to open application", slog.String("path", path), slog.Any("error", err))
 	}
 }
 
@@ -341,7 +340,7 @@ func (p *Provider) loadIcon(path string) fyne.Resource {
 
 	// Check if file exists
 	if _, err := os.Stat(path); err != nil {
-		log.Printf("Icon file not found: %s", path)
+		slog.Error("icon file does not exist", slog.String("path", path), slog.Any("error", err))
 		return nil
 	}
 
@@ -349,7 +348,7 @@ func (p *Provider) loadIcon(path string) fyne.Resource {
 	uri := storage.NewFileURI(path)
 	res, err := storage.LoadResourceFromURI(uri)
 	if err != nil {
-		log.Printf("Failed to load icon: %v", err)
+		slog.Error("failed to load icon resource", slog.String("path", path), slog.Any("error", err))
 		return nil
 	}
 
