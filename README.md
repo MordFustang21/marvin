@@ -21,10 +21,10 @@ Marvin is a lightweight Spotlight alternative built with Go and Fyne.io. It prov
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/marvin-go.git
+git clone https://github.com/MordFustang21/marvin.git
 
 # Build and install
-cd marvin-go
+cd marvin
 go build -o marvin ./cmd/marvin
 ```
 
