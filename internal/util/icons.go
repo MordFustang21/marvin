@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"fyne.io/fyne/v2"
@@ -17,14 +18,15 @@ import (
 )
 
 // IconCache stores loaded app icons to avoid extracting them repeatedly
-var IconCache = make(map[string]fyne.Resource)
+var IconCache = sync.Map{}
 
 // GetAppIcon returns a fyne.Resource containing the icon for the specified application path
 // If the icon cannot be extracted, it falls back to a default icon
 func GetAppIcon(appPath string) fyne.Resource {
 	// Check cache first
-	if res, exists := IconCache[appPath]; exists {
-		return res
+	value, ok := IconCache.Load(appPath)
+	if ok {
+		return value.(fyne.Resource)
 	}
 
 	// Ensure this is actually an app bundle
@@ -42,19 +44,33 @@ func GetAppIcon(appPath string) fyne.Resource {
 	}
 
 	// Cache the result
-	IconCache[appPath] = iconResource
+	iconCache.Store(appPath, iconResource)
+
 	return iconResource
 }
 
 // extractMacOSAppIcon extracts an application icon from a .app bundle on macOS
-func extractMacOSAppIcon(appPath string) (fyne.Resource, error) {
+func extractMacOSAppIcon(appPath string) (f fyne.Resource, e error) {
+	defer func() {
+		if f == nil && e == nil {
+			iconResource, err := getIconUsingCocoa(appPath)
+			if err == nil {
+				f = iconResource
+			} else {
+				slog.Error("failed to get icon using Cocoa", slog.String("path", appPath), slog.Any("error", err))
+				e = fmt.Errorf("failed to get icon using Cocoa: %w", err)
+			}
+		}
+	}()
+
 	// First, try to find the icon file within the app bundle
 	iconPath := filepath.Join(appPath, "Contents", "Resources", "AppIcon.icns")
 	if _, err := os.Stat(iconPath); os.IsNotExist(err) {
 		// If AppIcon.icns doesn't exist, look for the icon specified in Info.plist
 		infoPath := filepath.Join(appPath, "Contents", "Info.plist")
 		if _, err := os.Stat(infoPath); os.IsNotExist(err) {
-			return nil, fmt.Errorf("Info.plist not found in app bundle")
+			slog.Error("Info.plist not found in app bundle", slog.String("path", infoPath))
+			return nil, nil
 		}
 
 		// Extract the icon file name from Info.plist
@@ -62,7 +78,7 @@ func extractMacOSAppIcon(appPath string) (fyne.Resource, error) {
 		output, err := cmd.Output()
 		if err != nil {
 			slog.Error("failed to read icon file from Info.plist", slog.String("path", infoPath), slog.Any("error", err))
-			return nil, fmt.Errorf("failed to read icon info: %w", err)
+			return nil, nil
 		}
 
 		iconFile := strings.TrimSpace(string(output))
@@ -72,7 +88,8 @@ func extractMacOSAppIcon(appPath string) (fyne.Resource, error) {
 
 		iconPath = filepath.Join(appPath, "Contents", "Resources", iconFile)
 		if _, err := os.Stat(iconPath); os.IsNotExist(err) {
-			return nil, fmt.Errorf("icon file not found: %s", iconPath)
+			slog.Error("icon file not found in app bundle", slog.String("path", iconPath))
+			return nil, nil
 		}
 	}
 

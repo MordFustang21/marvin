@@ -14,6 +14,7 @@ import (
 	"fyne.io/fyne/v2/theme"
 	"github.com/MordFustang21/marvin-go/internal/search"
 	"github.com/MordFustang21/marvin-go/internal/util"
+	"github.com/lithammer/fuzzysearch/fuzzy"
 )
 
 // CachedResultProvider is a search provider that uses macOS Spotlight
@@ -88,29 +89,30 @@ func (p *Provider) Search(query string) ([]search.SearchResult, error) {
 func (p *Provider) searchCachedApps(queryLower string) []search.SearchResult {
 	results := []search.SearchResult{}
 
-	// Check for exact matches in cache first
-	if cachedResults, ok := p.cachedApps[queryLower]; ok {
-		return cachedResults
-	}
-
-	// Otherwise, do prefix matching on keys
-	for appName, cachedResults := range p.cachedApps {
-		if strings.HasPrefix(appName, queryLower) {
-			results = append(results, cachedResults...)
-			if len(results) >= p.maxResults {
-				return results[:p.maxResults]
-			}
-		}
-	}
-
-	// If we still don't have enough, try substring matching
-	if len(results) < p.maxResults {
-		for appName, cachedResults := range p.cachedApps {
-			if strings.Contains(appName, queryLower) && !strings.HasPrefix(appName, queryLower) {
-				results = append(results, cachedResults...)
+	for key, cachedResults := range p.cachedApps {
+		if fuzzy.Match(queryLower, key) {
+			// If the key matches, add all cached results for this key
+			for _, result := range cachedResults {
+				// Limit results to maxResults
 				if len(results) >= p.maxResults {
-					return results[:p.maxResults]
+					break
 				}
+
+				// Create a copy of the result to avoid closure issues
+				resultCopy := result
+				resultCopy.Action = func() {
+					err := OpenFile(result.Path)
+					if err != nil {
+						slog.Error("Failed to open cached application", slog.String("path", result.Path), slog.Any("error", err))
+					}
+				}
+
+				results = append(results, resultCopy)
+			}
+
+			// Stop if we've reached the max results limit
+			if len(results) >= p.maxResults {
+				break
 			}
 		}
 	}
