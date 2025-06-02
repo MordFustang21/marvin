@@ -11,6 +11,7 @@ import (
 	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/driver"
 	"fyne.io/fyne/v2/driver/desktop"
+	"github.com/MordFustang21/marvin-go/internal/platform/macos"
 	"github.com/MordFustang21/marvin-go/internal/search"
 	"github.com/MordFustang21/marvin-go/internal/search/providers/calculator"
 	"github.com/MordFustang21/marvin-go/internal/search/providers/commands"
@@ -21,7 +22,6 @@ import (
 	"github.com/MordFustang21/marvin-go/internal/ui"
 	"github.com/MordFustang21/marvin-go/internal/ui/assets"
 	screenmanager "github.com/MordFustang21/marvin-go/internal/util/screen_manager"
-	hook "github.com/robotn/gohook"
 )
 
 var (
@@ -75,9 +75,13 @@ func main() {
 		})
 	})
 
-	// Setup shortcuts for cmd+space to toggle the window.
-	go func() {
-		hook.Register(hook.KeyDown, []string{"cmd", "space"}, func(e hook.Event) {
+	// Setup shortcuts for cmd+space to toggle the window using native macOS events
+	if runtime.GOOS == "darwin" {
+		// Get the macOS event handler
+		eventHandler := macos.GetEventHandler()
+
+		// Register Cmd+Space hotkey
+		eventHandler.RegisterGlobalHotkey(macos.KeySpace, macos.ModCommand, func() {
 			fyne.Do(func() {
 				if searchWindow.IsVisible() {
 					searchWindow.Hide()
@@ -88,8 +92,9 @@ func main() {
 			})
 		})
 
-		hook.Process(hook.Start())
-	}()
+		// Start monitoring for events
+		eventHandler.StartMonitoring()
+	}
 
 	// Set up a signal handler for graceful shutdown
 	signalCh := make(chan os.Signal, 1)
@@ -97,6 +102,12 @@ func main() {
 
 	go func() {
 		<-signalCh
+		// Clean up resources before exiting
+		if runtime.GOOS == "darwin" {
+			eventHandler := macos.GetEventHandler()
+			eventHandler.StopMonitoring()
+			eventHandler.UnregisterGlobalHotkey()
+		}
 		marvin.Quit()
 		os.Exit(0)
 	}()

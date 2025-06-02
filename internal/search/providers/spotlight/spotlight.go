@@ -90,7 +90,7 @@ func (p *Provider) searchCachedApps(queryLower string) []search.SearchResult {
 	results := []search.SearchResult{}
 
 	for key, cachedResults := range p.cachedApps {
-		if fuzzy.Match(queryLower, key) {
+		if strings.HasPrefix(key, queryLower) || fuzzy.Match(queryLower, key) {
 			// If the key matches, add all cached results for this key
 			for _, result := range cachedResults {
 				// Limit results to maxResults
