@@ -1,7 +1,9 @@
 package ui
 
 import (
+	"context"
 	"fmt"
+	"sort"
 	"time"
 
 	"fyne.io/fyne/v2"
@@ -25,19 +27,26 @@ const (
 
 // SearchWindow represents the main search window of the application
 type SearchWindow struct {
-	window        fyne.Window
-	searchInput   *SearchEntry
-	resultsList   *fyne.Container
-	registry      *search.Registry
-	timer         *time.Timer
-	isFrameless   bool
-	selectedIndex int
-	results       []search.SearchResult
-	resultItems   []*SearchResultItem
+	window           fyne.Window
+	searchInput      *SearchEntry
+	resultsList      *fyne.Container
+	registry         *search.Registry
+	timer            *time.Timer
+	isFrameless      bool
+	selectedIndex    int
+	results          []search.SearchResult
+	resultItems      []*SearchResultItem
 	// show is used to track if the window is currently visible.
 	show bool
 	// resultMap tracks results by their unique identifiers to prevent duplicates
-	resultMap map[string]int
+	resultMap        map[string]int
+	// cancellation for current search
+	currentCtx       context.Context
+	cancelCurrentCtx context.CancelFunc
+	// searchTimeout defines how long to wait before considering a search complete
+	searchTimeout    time.Duration
+	// Track results by provider priority for proper ordering
+	resultsByPriority map[int][]int
 }
 
 // NewSearchWindow creates a new search window
@@ -70,14 +79,21 @@ func NewSearchWindow(app fyne.App, registry *search.Registry) *SearchWindow {
 	resultsList := container.NewVBox()
 	resultsScroll := container.NewScroll(resultsList)
 
+	// Create initial no-op context
+	ctx, cancel := context.WithCancel(context.Background())
+	
 	// Create the main search window
 	searchWindow := &SearchWindow{
-		window:      window,
-		searchInput: searchInput,
-		resultsList: resultsList,
-		registry:    registry,
-		isFrameless: true,
-		resultMap:   make(map[string]int),
+		window:           window,
+		searchInput:      searchInput,
+		resultsList:      resultsList,
+		registry:         registry,
+		isFrameless:      true,
+		resultMap:        make(map[string]int),
+		currentCtx:       ctx,
+		cancelCurrentCtx: cancel,
+		searchTimeout:    500 * time.Millisecond, // Default timeout for considering search complete
+		resultsByPriority: make(map[int][]int),   // Track results by provider priority
 	}
 
 	// Create trigger for search on input submission.
@@ -119,6 +135,9 @@ func NewSearchWindow(app fyne.App, registry *search.Registry) *SearchWindow {
 		if searchWindow.timer != nil {
 			searchWindow.timer.Reset(searchDelay)
 		}
+		
+		// Cancel any ongoing search
+		searchWindow.cancelCurrentCtx()
 	}
 
 	// Create a cleaner layout with custom padding and styling
@@ -211,6 +230,11 @@ func (sw *SearchWindow) launchSelectedResult() {
 
 // Close closes the search window and cleans up resources
 func (sw *SearchWindow) Close() {
+	// Cancel any ongoing searches
+	if sw.cancelCurrentCtx != nil {
+		sw.cancelCurrentCtx()
+	}
+	
 	if sw.timer != nil {
 		sw.timer.Stop()
 	}
@@ -222,11 +246,34 @@ func (sw *SearchWindow) Close() {
 
 // performSearch executes the search and updates the UI
 func (sw *SearchWindow) performSearch(query string) {
+	// Cancel any previous search
+	sw.cancelCurrentCtx()
+	
+	// Create a new context for this search
+	ctx, cancel := context.WithTimeout(context.Background(), sw.searchTimeout)
+	sw.currentCtx = ctx
+	sw.cancelCurrentCtx = cancel
+	
+	// Clean up when we're done with this search
+	defer func() {
+		// Don't cancel immediately - wait for timeout or next search
+		go func() {
+			<-time.After(sw.searchTimeout)
+			cancel() // Cancel after timeout to clean up resources
+		}()
+	}()
+	
 	// Remove all previous results and reset state
 	sw.results = nil
 	sw.resultItems = nil
 	sw.resultMap = make(map[string]int)
+	sw.resultsByPriority = make(map[int][]int)
 	sw.selectedIndex = 0 // Start with first item selected
+	
+	// Clear the UI right away
+	fyne.Do(func() {
+		sw.resultsList.RemoveAll()
+	})
 
 	if query == "" {
 		return
@@ -236,13 +283,11 @@ func (sw *SearchWindow) performSearch(query string) {
 	errCh := make(chan error)
 	doneCh := make(chan struct{})
 
-	go sw.registry.SearchAsync(query, resultsCh, errCh, doneCh)
+	// Start the search with context for cancellation
+	go sw.registry.SearchAsync(ctx, query, resultsCh, errCh, doneCh)
 
 	// Track if we've shown any results yet
 	var anyResults bool
-
-	// Track results by provider type for proper ordering
-	resultsByType := make(map[search.ProviderType][]int)
 
 	go func() {
 		for {
@@ -255,87 +300,115 @@ func (sw *SearchWindow) performSearch(query string) {
 					continue
 				}
 
-				// If this is the first set of results, ensure the list is clean
-				if !anyResults {
-					sw.resultsList.RemoveAll()
-					// Don't reset resultItems completely, as we want to maintain ordered results
-					sw.selectedIndex = 0
-				}
-				anyResults = true
-
 				// Process new results
-				currentItemsCount := len(sw.resultItems)
-				for _, result := range results {
-					// Create a unique key for this result to prevent duplicates
-					resultKey := fmt.Sprintf("%s:%s", string(result.Type), result.Path)
-
-					// Skip if we've already added this result
-					if _, exists := sw.resultMap[resultKey]; exists {
-						continue
-					}
-
-					resultItem := NewSearchResult(result)
-					// Truncate long descriptions
-					if len(resultItem.Description) > 120 {
-						resultItem.Description = resultItem.Description[:117] + "..."
-					}
-					// Configure the action to hide the window after execution
-					originalAction := resultItem.OnTap
-					resultItem.OnTap = func() {
-						if originalAction != nil {
-							originalAction()
-						}
-						sw.Hide() // Hide the window after selection
-					}
-
-					// Track the item by provider type
-					resultIndex := len(sw.resultItems)
-					resultsByType[result.Type] = append(resultsByType[result.Type], resultIndex)
-
-					// Add result to our data structures and mark as added
-					sw.resultItems = append(sw.resultItems, resultItem)
-					sw.resultMap[resultKey] = resultIndex
-				}
-
-				// If we just got a first batch of results, build the UI
-				// This handles initial results
-				if currentItemsCount == 0 && len(sw.resultItems) > 0 {
-					// Add all items to UI in order
-					for _, item := range sw.resultItems {
-						sw.resultsList.Add(item)
-					}
-					// Select first item
-					if len(sw.resultItems) > 0 {
-						sw.resultItems[0].IsSelected = true
-						sw.selectResult(0)
-					}
-				} else if currentItemsCount > 0 {
-					// This handles subsequent results
-					// Clear and rebuild the list to maintain proper ordering
-					sw.resultsList.RemoveAll()
-					for _, item := range sw.resultItems {
-						sw.resultsList.Add(item)
-					}
-				}
-
-				// Refresh the UI
 				fyne.Do(func() {
-					sw.resultsList.Refresh()
+					// Only set anyResults to true once we process results
+					anyResults = true
+					
+					// Get the provider priority from the first result (all results in a batch have same priority)
+					if len(results) > 0 {
+						// Find provider for these results to get priority
+						var providerPriority int
+						for _, p := range sw.registry.GetProviders() {
+							if p.Type() == results[0].Type {
+								providerPriority = p.Priority()
+								break
+							}
+						}
+
+						// Process new results
+						newItemIndices := make([]int, 0, len(results))
+						
+						for _, result := range results {
+							// Create a unique key for this result to prevent duplicates
+							resultKey := fmt.Sprintf("%s:%s", string(result.Type), result.Path)
+
+							// Skip if we've already added this result
+							if _, exists := sw.resultMap[resultKey]; exists {
+								continue
+							}
+
+							resultItem := NewSearchResult(result)
+							// Truncate long descriptions
+							if len(resultItem.Description) > 120 {
+								resultItem.Description = resultItem.Description[:117] + "..."
+							}
+
+							// Configure the action to hide the window after execution
+							originalAction := resultItem.OnTap
+							resultItem.OnTap = func() {
+								if originalAction != nil {
+									originalAction()
+								}
+								sw.Hide() // Hide the window after selection
+							}
+
+							// Add result to our data structures
+							sw.resultItems = append(sw.resultItems, resultItem)
+							itemIndex := len(sw.resultItems) - 1
+							sw.resultMap[resultKey] = itemIndex
+							
+							// Track this result by provider priority
+							newItemIndices = append(newItemIndices, itemIndex)
+						}
+
+						// Add indices to the priority map
+						sw.resultsByPriority[providerPriority] = append(sw.resultsByPriority[providerPriority], newItemIndices...)
+						
+						// Rebuild the UI in priority order
+						sw.resultsList.RemoveAll()
+						
+						// Get all priorities and sort them (lower number = higher priority)
+						priorities := make([]int, 0, len(sw.resultsByPriority))
+						for p := range sw.resultsByPriority {
+							priorities = append(priorities, p)
+						}
+						sort.Ints(priorities)
+						
+						// Add results in priority order
+						for _, priority := range priorities {
+							for _, idx := range sw.resultsByPriority[priority] {
+								sw.resultsList.Add(sw.resultItems[idx])
+							}
+						}
+						
+						// Select first item if this is our first batch of results
+						if len(sw.resultItems) > 0 && sw.selectedIndex == 0 {
+							sw.selectResult(0)
+						}
+						
+						// Refresh the UI
+						sw.resultsList.Refresh()
+					}
 				})
 
 			case err, ok := <-errCh:
-				if ok && err != nil {
-					sw.resultsList.RemoveAll()
-					sw.resultsList.Add(widget.NewLabel("Error: " + err.Error()))
-					sw.resultsList.Refresh()
+				if !ok || err == nil {
+					continue
 				}
+				
+				fyne.Do(func() {
+					// Only show error if we don't have results yet
+					if !anyResults {
+						sw.resultsList.RemoveAll()
+						sw.resultsList.Add(widget.NewLabel("Error: " + err.Error()))
+						sw.resultsList.Refresh()
+					}
+				})
+				
 			case <-doneCh:
-				// If no results were shown, show "No results found"
-				if !anyResults {
-					sw.resultsList.RemoveAll()
-					sw.resultsList.Add(widget.NewLabel("No results found"))
-					sw.resultsList.Refresh()
-				}
+				fyne.Do(func() {
+					// If no results were shown, show "No results found"
+					if !anyResults {
+						sw.resultsList.RemoveAll()
+						sw.resultsList.Add(widget.NewLabel("No results found"))
+						sw.resultsList.Refresh()
+					}
+				})
+				return
+				
+			case <-ctx.Done():
+				// Search was cancelled
 				return
 			}
 		}
@@ -372,6 +445,11 @@ func (sw *SearchWindow) ShowWithKeyboardFocus() {
 
 // ClearSearch clears the current search query and results
 func (sw *SearchWindow) ClearSearch() {
+	// Cancel any ongoing searches
+	if sw.cancelCurrentCtx != nil {
+		sw.cancelCurrentCtx()
+	}
+	
 	sw.searchInput.SetText("")
 	sw.resultsList.RemoveAll()
 }
