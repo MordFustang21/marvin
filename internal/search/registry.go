@@ -1,6 +1,7 @@
 package search
 
 import (
+	"context"
 	"fmt"
 	"sort"
 	"sync"
@@ -34,110 +35,166 @@ func (r *Registry) RegisterProvider(provider Provider) {
 	})
 }
 
-// SearchAsync performs a search and sends results in priority order.
-func (r *Registry) SearchAsync(query string, resultsCh chan<- []SearchResult, errCh chan<- error, doneCh chan<- struct{}) {
+// SearchAsync performs a search and sends results as they arrive, ordered by provider priority.
+// It accepts a context for cancellation to stop the search when needed.
+func (r *Registry) SearchAsync(ctx context.Context, query string, resultsCh chan<- []SearchResult, errCh chan<- error, doneCh chan<- struct{}) {
 	if query == "" {
 		close(resultsCh)
 		if doneCh != nil {
 			doneCh <- struct{}{}
+			close(doneCh)
+		}
+		if errCh != nil {
+			close(errCh)
 		}
 		return
 	}
 
-	// Reset result collection
-	r.resultsByPriority = make(map[int][]SearchResult)
+	// Reset tracking maps
 	r.sentResults = make(map[string]bool)
 
-	// Use a mutex to protect the resultsByPriority map during concurrent updates
-	var resultsMutex sync.Mutex
+	// Create a mutex to protect the sentResults map
+	var sentMutex sync.Mutex
+
+	// Create channels for collecting results from providers
+	type priorityResult struct {
+		priority int
+		results  []SearchResult
+	}
+	
+	// Channel for results from individual providers
+	resultCollector := make(chan priorityResult)
+	
+	// Use WaitGroup to track when all providers are done
 	var wg sync.WaitGroup
 
-	// Store provider priorities for sorting
-	priorities := make([]int, 0)
-
 	// Tracking active providers
-	providerCount := 0
+	activeProviders := 0
 
+	// Start provider searches
 	for _, provider := range r.providers {
 		if !provider.CanHandle(query) {
 			continue
 		}
 
-		providerCount++
+		activeProviders++
 		priority := provider.Priority()
-
-		// Track this priority for later sorting
-		resultsMutex.Lock()
-		if _, exists := r.resultsByPriority[priority]; !exists {
-			priorities = append(priorities, priority)
-		}
-		resultsMutex.Unlock()
 
 		wg.Add(1)
 		go func(p Provider, prio int) {
 			defer wg.Done()
+			
+			// Check if context is cancelled before starting search
+			select {
+			case <-ctx.Done():
+				return
+			default:
+				// Continue with search
+			}
+			
 			results, err := p.Search(query)
+			
+			// Check context again after search
+			select {
+			case <-ctx.Done():
+				return
+			default:
+				// Continue processing results
+			}
+			
 			if err != nil {
 				if errCh != nil {
-					errCh <- err
+					select {
+					case errCh <- err:
+					case <-ctx.Done():
+						return
+					}
 				}
 				return
 			}
 
 			if len(results) > 0 {
-				// Add results to priority map
-				resultsMutex.Lock()
-				r.resultsByPriority[prio] = append(r.resultsByPriority[prio], results...)
-
-				// Only send each batch once, prioritizing higher priority providers
-				// by not sending immediate results (only in priority order)
-				resultsMutex.Unlock()
+				select {
+				case resultCollector <- priorityResult{priority: prio, results: results}:
+				case <-ctx.Done():
+					return
+				}
 			}
 		}(provider, priority)
 	}
 
-	go func() {
-		wg.Wait()
-
-		// If we have results, send them in proper priority order
-		if len(r.resultsByPriority) > 0 {
-			// Sort priorities (lower number = higher priority)
-			sort.Ints(priorities)
-
-			// Send results in priority order
-			for _, priority := range priorities {
-				results := r.resultsByPriority[priority]
-				if len(results) > 0 {
-					// Create a new slice to hold only unique results
-					uniqueResults := make([]SearchResult, 0, len(results))
-
-					// Filter out any duplicates based on Path
-					for _, result := range results {
-						// Create a unique key for this result
-						resultKey := fmt.Sprintf("%s:%s", string(result.Type), result.Path)
-
-						// Only add if we haven't sent this result yet
-						if !r.sentResults[resultKey] {
-							uniqueResults = append(uniqueResults, result)
-							r.sentResults[resultKey] = true
-						}
-					}
-
-					// Only send if we have unique results to send
-					if len(uniqueResults) > 0 {
-						resultsCh <- uniqueResults
-					}
-				}
-			}
-		}
-
-		// Close channels when done
+	// If no providers are active, clean up and return
+	if activeProviders == 0 {
 		close(resultsCh)
 		if errCh != nil {
 			close(errCh)
 		}
 		if doneCh != nil {
 			doneCh <- struct{}{}
+			close(doneCh)
+		}
+		return
+	}
+
+	// Start a goroutine to collect results and close channels when done
+	go func() {
+		// Close the result collector when all providers are done
+		go func() {
+			wg.Wait()
+			close(resultCollector)
+		}()
+
+		// Process results as they come in
+		for pr := range resultCollector {
+			// Filter for unique results
+			uniqueResults := make([]SearchResult, 0, len(pr.results))
+			
+			sentMutex.Lock()
+			for _, result := range pr.results {
+				// Create a unique key for this result
+				resultKey := fmt.Sprintf("%s:%s", string(result.Type), result.Path)
+				
+				// Only add if we haven't sent this result yet
+				if !r.sentResults[resultKey] {
+					uniqueResults = append(uniqueResults, result)
+					r.sentResults[resultKey] = true
+				}
+			}
+			sentMutex.Unlock()
+			
+			// Send unique results if we have any
+			if len(uniqueResults) > 0 {
+				select {
+				case resultsCh <- uniqueResults:
+				case <-ctx.Done():
+					// Cleanup and exit if context is cancelled
+					close(resultsCh)
+					if errCh != nil {
+						close(errCh)
+					}
+					if doneCh != nil {
+						doneCh <- struct{}{}
+						close(doneCh)
+					}
+					return
+				}
+			}
+		}
+
+		// All providers are done, clean up channels
+		select {
+		case <-ctx.Done():
+			// Context was cancelled
+		default:
+			// Normal completion
+			close(resultsCh)
+			if errCh != nil {
+				close(errCh)
+			}
+			if doneCh != nil {
+				doneCh <- struct{}{}
+				close(doneCh)
+			}
 		}
 	}()
 }
