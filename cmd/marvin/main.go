@@ -11,7 +11,6 @@ import (
 	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/driver"
 	"fyne.io/fyne/v2/driver/desktop"
-	"github.com/MordFustang21/marvin-go/internal/platform/macos"
 	"github.com/MordFustang21/marvin-go/internal/search"
 	"github.com/MordFustang21/marvin-go/internal/search/providers/calculator"
 	"github.com/MordFustang21/marvin-go/internal/search/providers/commands"
@@ -21,6 +20,7 @@ import (
 	"github.com/MordFustang21/marvin-go/internal/theme"
 	"github.com/MordFustang21/marvin-go/internal/ui"
 	"github.com/MordFustang21/marvin-go/internal/ui/assets"
+	"github.com/MordFustang21/marvin-go/internal/util/events"
 	screenmanager "github.com/MordFustang21/marvin-go/internal/util/screen_manager"
 )
 
@@ -58,8 +58,10 @@ func main() {
 		}
 
 		// RunNative must be called on the main Fyne goroutine
-		nativeWin.RunNative(func(ctx any) { // ctx is platform specific
-			if runtime.GOOS == "darwin" {
+		nativeWin.RunNative(func(ctx any) {
+			// ctx is platform specific
+			switch runtime.GOOS {
+			case "darwin":
 				macCtx, ok := ctx.(driver.MacWindowContext)
 				if !ok {
 					slog.Debug("Failed to get MacWindowContext from RunNative callback")
@@ -69,32 +71,30 @@ func main() {
 				// Store it as Go's uintptr
 				goNSWindowPtr = uintptr(macCtx.NSWindow)
 				slog.Debug("Got NSWindow pointer", slog.Any("NSWindowPtr", goNSWindowPtr))
-			} else {
+				screenmanager.GoMoveToScreenWithMouse(goNSWindowPtr)
+			default:
 				slog.Debug("Screen management is only supported on macOS")
 			}
 		})
 	})
 
-	// Setup shortcuts for cmd+space to toggle the window using native macOS events
-	if runtime.GOOS == "darwin" {
-		// Get the macOS event handler
-		eventHandler := macos.GetEventHandler()
+	// Setup shortcuts for cmd+space to toggle the window using the events package.
+	eventHandler := events.GetEventHandler()
 
-		// Register Cmd+Space hotkey
-		eventHandler.RegisterGlobalHotkey(macos.KeySpace, macos.ModCommand, func() {
-			fyne.Do(func() {
-				if searchWindow.IsVisible() {
-					searchWindow.Hide()
-				} else {
-					searchWindow.ShowWithKeyboardFocus()
-					screenmanager.GoMoveToScreenWithMouse(goNSWindowPtr)
-				}
-			})
+	// Register Cmd+Space hotkey
+	eventHandler.RegisterGlobalHotkey(events.KeySpace, events.ModCommand, func() {
+		fyne.Do(func() {
+			if searchWindow.IsVisible() {
+				searchWindow.Hide()
+			} else {
+				searchWindow.ShowWithKeyboardFocus()
+				screenmanager.GoMoveToScreenWithMouse(goNSWindowPtr)
+			}
 		})
+	})
 
-		// Start monitoring for events
-		eventHandler.StartMonitoring()
-	}
+	// Start monitoring for events
+	eventHandler.StartMonitoring()
 
 	// Set up a signal handler for graceful shutdown
 	signalCh := make(chan os.Signal, 1)
@@ -103,11 +103,10 @@ func main() {
 	go func() {
 		<-signalCh
 		// Clean up resources before exiting
-		if runtime.GOOS == "darwin" {
-			eventHandler := macos.GetEventHandler()
-			eventHandler.StopMonitoring()
-			eventHandler.UnregisterGlobalHotkey()
-		}
+		eventHandler := events.GetEventHandler()
+		eventHandler.StopMonitoring()
+		eventHandler.UnregisterGlobalHotkey()
+
 		marvin.Quit()
 		os.Exit(0)
 	}()

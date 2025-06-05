@@ -1,4 +1,4 @@
-package util
+package icons
 
 /*
 #cgo CFLAGS: -x objective-c

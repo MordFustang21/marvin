@@ -13,7 +13,7 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/theme"
 	"github.com/MordFustang21/marvin-go/internal/search"
-	"github.com/MordFustang21/marvin-go/internal/util"
+	"github.com/MordFustang21/marvin-go/internal/ui/icons"
 	"github.com/lithammer/fuzzysearch/fuzzy"
 )
 
@@ -272,13 +272,13 @@ func (p *Provider) getParentDirectory(path string) string {
 func (p *Provider) determineKindAndIcon(path string) (kind string, icon fyne.Resource) {
 	if strings.HasSuffix(path, ".app") {
 		// Use our custom icon extraction utility for app bundles
-		return "application", util.GetAppIcon(path)
+		return "application", icons.GetAppIcon(path)
 	} else if strings.HasSuffix(path, "/") || !strings.Contains(filepath.Base(path), ".") {
 		// More reliable folder detection - ends with slash or has no extension
 		return "folder", theme.FolderIcon()
 	} else {
 		// Get an appropriate icon based on file type
-		return "file", util.GetSystemIcon(path)
+		return "file", icons.GetSystemIcon(path)
 	}
 }
 

@@ -1,4 +1,4 @@
-package macos
+package events
 
 /*
 #cgo CFLAGS: -x objective-c
