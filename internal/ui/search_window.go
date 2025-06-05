@@ -3,6 +3,7 @@ package ui
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"sort"
 	"time"
 
@@ -173,6 +174,11 @@ func (sw *SearchWindow) selectResult(index int) {
 	} else if index >= len(sw.resultItems) {
 		index = len(sw.resultItems) - 1
 	}
+
+	slog.Debug("Selecting result",
+		"index", index,
+		"title", sw.resultItems[index].Title,
+		"previousIndex", sw.selectedIndex)
 
 	// Deselect current selection
 	if sw.selectedIndex >= 0 && sw.selectedIndex < len(sw.resultItems) {
@@ -365,17 +371,41 @@ func (sw *SearchWindow) performSearch(query string) {
 						}
 						sort.Ints(priorities)
 
-						// Add results in priority order
+						// Rebuild resultItems array to match display order
+						orderedResults := make([]*SearchResultItem, 0, len(sw.resultItems))
+
+						// Add results in priority order to both UI and ordered array
 						for _, priority := range priorities {
 							for _, idx := range sw.resultsByPriority[priority] {
 								sw.resultsList.Add(sw.resultItems[idx])
+								orderedResults = append(orderedResults, sw.resultItems[idx])
 							}
+						}
+
+						// Replace resultItems with the ordered version
+						sw.resultItems = orderedResults
+
+						// Update resultMap to reflect new indices
+						sw.resultMap = make(map[string]int)
+						for i, item := range sw.resultItems {
+							resultKey := fmt.Sprintf("%s:%s", string(item.searchResult.Type), item.Path)
+							sw.resultMap[resultKey] = i
 						}
 
 						// Always select the first item after rebuilding the UI to ensure
 						// the highest priority result is selected
 						if len(sw.resultItems) > 0 {
-							sw.selectResult(0)
+							slog.Debug("Selecting first result after rebuild",
+								"title", sw.resultItems[0].Title,
+								"type", sw.resultItems[0].searchResult.Type,
+								"totalResults", len(sw.resultItems))
+
+							// Ensure all previous selections are cleared before setting new one
+							for i, item := range sw.resultItems {
+								item.IsSelected = (i == 0)
+								item.Refresh()
+							}
+							sw.selectedIndex = 0
 						}
 
 						// Refresh the UI
