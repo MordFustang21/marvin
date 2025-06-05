@@ -141,7 +141,7 @@ func (p *Provider) Search(query string) ([]search.SearchResult, error) {
 				results = append(results, search.SearchResult{
 					Title:       command.Name,
 					Description: command.Description,
-					Path:        trigger,
+					Path:        cmd.Name,
 					Icon:        icon,
 					Type:        search.TypeSystem,
 					Action: func() {
