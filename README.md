@@ -19,6 +19,8 @@ Marvin is a lightweight Spotlight alternative built with Go and Fyne.io. It prov
 
 ## Installation
 
+### Quick Build
+
 ```bash
 # Clone the repository
 git clone https://github.com/MordFustang21/marvin.git
@@ -27,6 +29,29 @@ git clone https://github.com/MordFustang21/marvin.git
 cd marvin
 go build -o marvin ./cmd/marvin
 ```
+
+### Build macOS App Bundle
+
+For a proper macOS application bundle with app icon and proper integration:
+
+```bash
+# Clone the repository
+git clone https://github.com/MordFustang21/marvin.git
+cd marvin
+
+# Run the build script
+./build/build_macos.sh
+```
+
+This will create a `Marvin.app` bundle in the `build/` directory that you can copy to your Applications folder. The build script:
+
+- Creates a proper macOS app bundle structure
+- Includes the application icon (if available)
+- Sets up the Info.plist with proper metadata
+- Configures the app to run as a background utility (LSUIElement)
+- Makes the app ready for distribution
+
+**Note**: After installation, if you receive a security warning when first launching, go to System Preferences > Security & Privacy and click "Open Anyway".
 
 ## Usage
 
