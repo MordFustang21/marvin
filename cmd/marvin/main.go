@@ -21,6 +21,7 @@ import (
 	"github.com/MordFustang21/marvin-go/internal/ui"
 	"github.com/MordFustang21/marvin-go/internal/ui/assets"
 	"github.com/MordFustang21/marvin-go/internal/util/events"
+	"github.com/MordFustang21/marvin-go/internal/util/macos"
 	screenmanager "github.com/MordFustang21/marvin-go/internal/util/screen_manager"
 )
 
@@ -33,6 +34,13 @@ var (
 func main() {
 	// Create a new Fyne application with custom ID
 	marvin := app.NewWithID("com.mordfustang.marvin")
+
+	// Set the application's dock icon visibility based on user preference on macOS
+	if runtime.GOOS == "darwin" {
+		marvin.Lifecycle().SetOnStarted(func() {
+			macos.HideDockIcon()
+		})
+	}
 
 	// Set system tray so the app can run in the background.
 	if desk, ok := marvin.(desktop.App); ok {
@@ -116,6 +124,7 @@ func main() {
 }
 
 // setupSearchProviders registers all search providers with the registry
+
 func setupSearchProviders(registry *search.Registry) {
 	// Register spotlight provider with highest priority (lowest number)
 	spotlightProvider := spotlight.NewProvider(1, 20) // Priority 1, max 20 results
