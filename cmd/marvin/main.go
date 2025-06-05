@@ -27,6 +27,9 @@ import (
 )
 
 var (
+	// Version information
+	version = "1.0.0"
+
 	// goNSWindowPtr will store the pointer to the NSWindow as a Go uintptr.
 	// This is used to call C functions that require the NSWindow pointer.
 	goNSWindowPtr uintptr
@@ -57,6 +60,28 @@ func main() {
 
 	// Create the search window with the registry.
 	searchWindow := ui.NewSearchWindow(marvin, registry)
+
+	// Set up system tray menu after search window is created
+	if desk, ok := marvin.(desktop.App); ok {
+		// Create system tray menu
+		showMenu := fyne.NewMenuItem("Show Marvin", func() {
+			fyne.Do(func() {
+				if searchWindow.IsVisible() {
+					searchWindow.Hide()
+				} else {
+					searchWindow.ShowWithKeyboardFocus()
+					screenmanager.GoMoveToScreenWithMouse(goNSWindowPtr)
+				}
+			})
+		})
+		showMenu.Shortcut = &desktop.CustomShortcut{KeyName: fyne.KeySpace, Modifier: fyne.KeyModifierSuper}
+
+		separatorMenu := fyne.NewMenuItemSeparator()
+
+		// Set the system tray menu
+		menu := fyne.NewMenu("Marvin", showMenu, separatorMenu, separatorMenu)
+		desk.SetSystemTrayMenu(menu)
+	}
 
 	// Attempt to get the NSWindow pointer for the search window.
 	marvin.Lifecycle().SetOnEnteredForeground(func() {
