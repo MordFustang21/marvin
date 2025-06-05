@@ -101,6 +101,16 @@ The Commands provider enables custom user-defined commands and shortcuts. It:
 - Allows organization of commands into logical groups
 - Handles custom icons for commands
 
+### System Settings Provider
+
+The System Settings provider enables quick access to macOS system settings panels. It:
+
+- Provides comprehensive coverage of macOS System Settings/System Preferences
+- Uses URL schemes to directly open specific settings panels
+- Supports fuzzy search through setting names, descriptions, and keywords
+- Works with both legacy System Preferences and newer System Settings
+- Categorizes settings for better organization and discoverability
+
 ## Implementing a Custom Provider
 
 To implement a custom search provider:

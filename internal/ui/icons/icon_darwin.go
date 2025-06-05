@@ -13,14 +13,9 @@ import "C"
 import (
 	"fmt"
 	"path/filepath"
-	"sync"
 	"unsafe"
 
 	"fyne.io/fyne/v2"
-)
-
-var (
-	iconCache = sync.Map{}
 )
 
 func getIconUsingCocoa(path string) (fyne.Resource, error) {

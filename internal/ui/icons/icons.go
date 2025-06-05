@@ -17,14 +17,14 @@ import (
 	"fyne.io/fyne/v2/theme"
 )
 
-// IconCache stores loaded app icons to avoid extracting them repeatedly
-var IconCache = sync.Map{}
+// iconCache stores loaded app icons to avoid extracting them repeatedly
+var iconCache = sync.Map{}
 
 // GetAppIcon returns a fyne.Resource containing the icon for the specified application path
 // If the icon cannot be extracted, it falls back to a default icon
 func GetAppIcon(appPath string) fyne.Resource {
 	// Check cache first
-	value, ok := IconCache.Load(appPath)
+	value, ok := iconCache.Load(appPath)
 	if ok {
 		return value.(fyne.Resource)
 	}

@@ -16,6 +16,7 @@ import (
 	"github.com/MordFustang21/marvin-go/internal/search/providers/commands"
 	encodedecode "github.com/MordFustang21/marvin-go/internal/search/providers/encode_decode"
 	"github.com/MordFustang21/marvin-go/internal/search/providers/spotlight"
+	"github.com/MordFustang21/marvin-go/internal/search/providers/systemsettings"
 	"github.com/MordFustang21/marvin-go/internal/search/providers/web"
 	"github.com/MordFustang21/marvin-go/internal/theme"
 	"github.com/MordFustang21/marvin-go/internal/ui"
@@ -137,6 +138,10 @@ func setupSearchProviders(registry *search.Registry) {
 	// Register custom commands provider with medium-high priority
 	commandsProvider := commands.NewProvider(3, "")
 	registry.RegisterProvider(commandsProvider)
+
+	// Register system settings provider with medium priority
+	systemSettingsProvider := systemsettings.NewProvider(4)
+	registry.RegisterProvider(systemSettingsProvider)
 
 	// Register web provider with lowest priority
 	webProvider := web.NewProvider(10) // Much lower priority than other providers
