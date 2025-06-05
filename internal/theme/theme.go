@@ -8,7 +8,7 @@ import (
 )
 
 // GitHubDarkTheme is a custom theme that implements the GitHub Dark Default theme
-type GitHubDarkTheme struct{
+type GitHubDarkTheme struct {
 	noTitleBar bool
 }
 
@@ -20,12 +20,12 @@ func (t *GitHubDarkTheme) Color(name fyne.ThemeColorName, variant fyne.ThemeVari
 	if name == theme.ColorNameShadow {
 		return color.NRGBA{R: 0, G: 0, B: 0, A: 0} // Transparent shadow
 	}
-	
+
 	// We want the title text to be visible, but not the window title
 	if name == theme.ColorNameForeground && t.noTitleBar {
 		return color.NRGBA{R: 230, G: 237, B: 243, A: 255} // Make text visible
 	}
-	
+
 	switch name {
 	case theme.ColorNameBackground:
 		return color.NRGBA{R: 13, G: 17, B: 23, A: 255} // #0d1117

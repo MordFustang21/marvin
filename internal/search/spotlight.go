@@ -26,7 +26,7 @@ func NewSpotlightSearcher(maxResults int) *SpotlightSearcher {
 	if maxResults <= 0 {
 		maxResults = 20 // Default max results if invalid value provided
 	}
-	
+
 	return &SpotlightSearcher{
 		maxResults: maxResults,
 	}
@@ -37,32 +37,32 @@ func (s *SpotlightSearcher) Search(query string) ([]SpotlightResult, error) {
 	if query == "" {
 		return []SpotlightResult{}, nil
 	}
-	
+
 	// Format the mdfind query
 	// We'll search for applications, files, folders that match the query
 	mdFindQuery := fmt.Sprintf("kind:app %s", query)
-	
+
 	cmd := exec.Command("mdfind", mdFindQuery)
 	var out bytes.Buffer
 	cmd.Stdout = &out
-	
+
 	err := cmd.Run()
 	if err != nil {
 		return nil, fmt.Errorf("spotlight search failed: %w", err)
 	}
-	
+
 	// Process results
 	results := []SpotlightResult{}
 	for path := range strings.SplitSeq(strings.TrimSpace(out.String()), "\n") {
 		if path == "" {
 			continue
 		}
-		
+
 		// Get file metadata
 		kind, iconName := determineKindAndIcon(path)
-		
+
 		name := extractNameFromPath(path)
-		
+
 		results = append(results, SpotlightResult{
 			Name:     name,
 			Path:     path,
@@ -70,7 +70,7 @@ func (s *SpotlightSearcher) Search(query string) ([]SpotlightResult, error) {
 			IconName: iconName,
 		})
 	}
-	
+
 	return results, nil
 }
 
@@ -101,17 +101,17 @@ func GetFileMetadata(path string) (map[string]interface{}, error) {
 	cmd := exec.Command("mdls", "-json", path)
 	var out bytes.Buffer
 	cmd.Stdout = &out
-	
+
 	err := cmd.Run()
 	if err != nil {
 		return nil, fmt.Errorf("metadata lookup failed: %w", err)
 	}
-	
+
 	var metadata map[string]interface{}
 	if err := json.Unmarshal(out.Bytes(), &metadata); err != nil {
 		return nil, fmt.Errorf("failed to parse metadata: %w", err)
 	}
-	
+
 	return metadata, nil
 }
 

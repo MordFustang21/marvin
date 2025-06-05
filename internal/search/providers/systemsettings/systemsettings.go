@@ -13,17 +13,17 @@ import (
 
 // SystemSetting represents a macOS system setting panel
 type SystemSetting struct {
-	Name        string // Display name
-	Description string // Description of what this setting controls
-	URLScheme   string // URL scheme to open the setting
+	Name        string   // Display name
+	Description string   // Description of what this setting controls
+	URLScheme   string   // URL scheme to open the setting
 	Keywords    []string // Additional keywords for search
-	Category    string // Category (General, Privacy, etc.)
+	Category    string   // Category (General, Privacy, etc.)
 }
 
 // Provider is a search provider for macOS System Settings
 type Provider struct {
-	priority int
-	settings []SystemSetting
+	priority           int
+	settings           []SystemSetting
 	systemSettingsIcon fyne.Resource
 }
 
@@ -62,7 +62,7 @@ func (p *Provider) CanHandle(query string) bool {
 	}
 
 	query = strings.ToLower(query)
-	
+
 	// Only check setting names for faster performance
 	for _, setting := range p.settings {
 		settingName := strings.ToLower(setting.Name)
@@ -89,14 +89,14 @@ func (p *Provider) Search(query string) ([]search.SearchResult, error) {
 		if len(results) >= 5 {
 			break
 		}
-		
+
 		settingName := strings.ToLower(setting.Name)
-		
+
 		// Use contains matching for better discoverability
 		if strings.Contains(settingName, query) {
 			// Create a copy for the closure
 			settingCopy := setting
-			
+
 			results = append(results, search.SearchResult{
 				Title:       setting.Name,
 				Description: fmt.Sprintf("%s • %s", setting.Category, setting.Description),
@@ -225,7 +225,7 @@ func getSystemSettings() []SystemSetting {
 			Keywords:    []string{"appearance", "accent", "highlight", "sidebar", "menubar"},
 			Category:    "General",
 		},
-		
+
 		// Network
 		{
 			Name:        "Network",
@@ -234,7 +234,7 @@ func getSystemSettings() []SystemSetting {
 			Keywords:    []string{"network", "ethernet", "vpn", "proxy"},
 			Category:    "Network",
 		},
-		
+
 		// Privacy & Security detailed settings
 		{
 			Name:        "Location Services",
@@ -264,7 +264,7 @@ func getSystemSettings() []SystemSetting {
 			Keywords:    []string{"full disk access", "files", "documents"},
 			Category:    "Privacy & Security",
 		},
-		
+
 		// Other commonly accessed settings
 		{
 			Name:        "Focus",
@@ -301,7 +301,7 @@ func getSystemSettings() []SystemSetting {
 			Keywords:    []string{"text input", "autocorrect", "spelling", "predictive"},
 			Category:    "Input",
 		},
-		
+
 		// Less commonly accessed settings
 		{
 			Name:        "Screen Time",
@@ -380,7 +380,7 @@ func getSystemSettings() []SystemSetting {
 			Keywords:    []string{"software update", "updates", "upgrade", "patch"},
 			Category:    "Software Update",
 		},
-		
+
 		// Advanced/rarely accessed settings
 		{
 			Name:        "VoiceOver",

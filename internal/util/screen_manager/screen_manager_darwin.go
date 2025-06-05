@@ -1,7 +1,7 @@
 package screenmanager
 
 /*
-#include <stdint.h> 
+#include <stdint.h>
 
 #cgo CFLAGS: -x objective-c
 #cgo LDFLAGS: -framework Cocoa

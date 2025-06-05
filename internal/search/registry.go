@@ -61,10 +61,10 @@ func (r *Registry) SearchAsync(ctx context.Context, query string, resultsCh chan
 		priority int
 		results  []SearchResult
 	}
-	
+
 	// Channel for results from individual providers
 	resultCollector := make(chan priorityResult)
-	
+
 	// Use WaitGroup to track when all providers are done
 	var wg sync.WaitGroup
 
@@ -83,7 +83,7 @@ func (r *Registry) SearchAsync(ctx context.Context, query string, resultsCh chan
 		wg.Add(1)
 		go func(p Provider, prio int) {
 			defer wg.Done()
-			
+
 			// Check if context is cancelled before starting search
 			select {
 			case <-ctx.Done():
@@ -91,9 +91,9 @@ func (r *Registry) SearchAsync(ctx context.Context, query string, resultsCh chan
 			default:
 				// Continue with search
 			}
-			
+
 			results, err := p.Search(query)
-			
+
 			// Check context again after search
 			select {
 			case <-ctx.Done():
@@ -101,7 +101,7 @@ func (r *Registry) SearchAsync(ctx context.Context, query string, resultsCh chan
 			default:
 				// Continue processing results
 			}
-			
+
 			if err != nil {
 				if errCh != nil {
 					select {
@@ -148,12 +148,12 @@ func (r *Registry) SearchAsync(ctx context.Context, query string, resultsCh chan
 		for pr := range resultCollector {
 			// Filter for unique results
 			uniqueResults := make([]SearchResult, 0, len(pr.results))
-			
+
 			sentMutex.Lock()
 			for _, result := range pr.results {
 				// Create a unique key for this result
 				resultKey := fmt.Sprintf("%s:%s", string(result.Type), result.Path)
-				
+
 				// Only add if we haven't sent this result yet
 				if !r.sentResults[resultKey] {
 					uniqueResults = append(uniqueResults, result)
@@ -161,7 +161,7 @@ func (r *Registry) SearchAsync(ctx context.Context, query string, resultsCh chan
 				}
 			}
 			sentMutex.Unlock()
-			
+
 			// Send unique results if we have any
 			if len(uniqueResults) > 0 {
 				select {
