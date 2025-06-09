@@ -4,7 +4,6 @@ go 1.24.1
 
 require (
 	fyne.io/fyne/v2 v2.6.1
-	github.com/mnogu/go-calculator v0.0.1
 	golang.design/x/clipboard v0.7.0
 )
 
